@@ -157,7 +157,7 @@ Tudo abaixo está **implementado e funcionando** (V0.1.0 — primeira release):
 pnpm tauri dev          # app completo com hot reload
 pnpm dev                # só Vite (sem Tauri)
 pnpm build              # build de produção (frontend)
-pnpm tauri build        # gera .dmg / .msi locais
+pnpm tauri build        # gera .dmg / .exe locais
 
 # Verificação
 pnpm typecheck          # tsc --noEmit
@@ -184,7 +184,7 @@ pnpm release:major      # 0.4.2 → 1.0.0
    `Cargo.lock`.
 3. Commit `release: vX.Y.Z` + tag anotada + push.
 4. Tag push dispara `.github/workflows/release.yml` que builda `.dmg`
-   universal (macOS) + `.msi` (Windows) em paralelo e publica GitHub Release.
+   universal (macOS) + `.exe` NSIS (Windows) em paralelo e publica GitHub Release.
 
 CI separado em `.github/workflows/ci.yml` roda em todo push/PR pra `main`:
 typecheck + lint + tests no frontend, `cargo check` + `cargo clippy -D
@@ -243,7 +243,7 @@ type SharedFile = {
   viável sem código nativo pesado (objc2 + win32 hacks).
 - **Notificação OS em dev** — vem com nome/ícone do Terminal (macOS) ou
   PowerShell (Windows) porque o processo herda do parent. Em build instalado
-  (.dmg/.msi) vem como "Xhare" corretamente.
+  (.dmg/.exe) vem como "Xhare" corretamente.
 - **Tailwind v4 sintaxe** — `p-0!` (sufixo) e não `!p-0` (prefixo).
 - **Tailwind v4 + .gitignore** — content auto-detection respeita .gitignore;
   se houver entrada conflitando com pasta real (ex: `logs/`), classes podem

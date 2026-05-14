@@ -86,11 +86,16 @@ jobs:
 
             ### Downloads
             - **macOS**: `.dmg` (universal — Intel + Apple Silicon)
-            - **Windows**: `.msi` (installer)
+            - **Windows**: `.exe` (NSIS installer, no admin required)
 
-            ⚠️ This build is **unsigned**. On macOS, right-click the app → Open
-            the first time to bypass Gatekeeper. On Windows, click "More info"
-            → "Run anyway" on the SmartScreen warning.
+            ⚠️ This build is **unsigned**.
+
+            **macOS first launch:** double-click will be blocked. Open
+            **System Settings → Privacy & Security**, scroll down, and click
+            **"Open Anyway"** next to the Xhare entry. First time only.
+
+            **Windows first launch:** SmartScreen may warn. Click **"More
+            info"** → **"Run anyway"**.
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}

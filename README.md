@@ -47,11 +47,17 @@ Pre-built installers are published on the
 [Releases page](https://github.com/Felipstein/xhare/releases):
 
 - **macOS** — universal `.dmg` (Intel + Apple Silicon)
-- **Windows** — `.msi` installer
+- **Windows** — `.exe` NSIS installer (no admin required, auto-detects pt-BR)
 
-> ⚠️ Builds are **unsigned**. On macOS, right-click the app → Open the first
-> time to bypass Gatekeeper. On Windows, click "More info" → "Run anyway" on
-> the SmartScreen warning.
+### First launch
+
+Builds are **unsigned**, so the OS will complain the first time you open them.
+
+**macOS:** double-click is blocked. Go to **System Settings → Privacy &
+Security**, scroll to the bottom and click **"Open Anyway"** next to the
+Xhare entry. First time only — subsequent launches are normal.
+
+**Windows:** SmartScreen may warn. Click **"More info"** → **"Run anyway"**.
 
 ---
 
@@ -109,7 +115,7 @@ launches are near-instant thanks to incremental compilation.
 | `pnpm tauri dev` | Full app in dev mode with hot reload |
 | `pnpm dev` | Vite dev server only (no Tauri shell) |
 | `pnpm build` | Production frontend build |
-| `pnpm tauri build` | Build native installers locally (`.dmg` / `.msi`) |
+| `pnpm tauri build` | Build native installers locally (`.dmg` / `.exe`) |
 | `pnpm typecheck` | TypeScript check, no emit |
 | `pnpm lint` / `pnpm lint:fix` | ESLint |
 | `pnpm test` / `pnpm test:watch` | Vitest |
@@ -195,8 +201,8 @@ The script ([`app/scripts/release.mjs`](app/scripts/release.mjs)):
 
 The tag push triggers
 [`.github/workflows/release.yml`](.github/workflows/release.yml), which builds
-the macOS universal `.dmg` and Windows `.msi` in parallel and publishes a
-GitHub Release with both binaries attached (~15-25 min end-to-end).
+the macOS universal `.dmg` and Windows `.exe` (NSIS) in parallel and publishes
+a GitHub Release with both binaries attached (~15-25 min end-to-end).
 
 > **First release:** since `package.json` already starts at `0.1.0`, cut the
 > very first tag manually instead of bumping:
@@ -246,7 +252,7 @@ doesn't punch through NAT or proxy through a server.
 **Why are notifications coming from "Terminal" / "PowerShell"?**
 That's expected in **dev mode** (`pnpm tauri dev`): the OS attributes the
 notification to the parent process. Run a build (`pnpm tauri build`) and
-install the produced `.app` / `.msi` — the bundled app registers properly and
+install the produced `.dmg` / `.exe` — the bundled app registers properly and
 notifications come from "Xhare" with the right icon.
 
 **Where do received files go?**
