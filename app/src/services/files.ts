@@ -1,5 +1,4 @@
-import { toast } from 'sonner';
-
+import { notify, notifyError } from '@/components/Toast';
 import { useDevicesStore } from '@/stores/devicesStore';
 import { useFilesStore } from '@/stores/filesStore';
 
@@ -28,18 +27,19 @@ function onlinePeerAddresses(): string[] {
     .map((d) => d.address);
 }
 
-/** Pick the most "real" location for this file — saved if the user already
- *  hit Salvar, otherwise the cache copy. */
 function effectivePath(file: SharedFile): string | undefined {
   return file.savedPath ?? file.cachedPath;
+}
+
+function revealLabel(): string {
+  const ua = navigator.userAgent.toLowerCase();
+  return ua.includes('win') ? 'Mostrar no Explorer' : 'Mostrar no Finder';
 }
 
 export async function sendFromPath(sourcePath: string): Promise<SentFile | null> {
   const peers = onlinePeerAddresses();
   if (peers.length === 0) {
-    toast.error('Nenhum dispositivo conectado', {
-      description: 'Abra o Xhare em outro PC da mesma rede para começar a compartilhar.',
-    });
+    notifyError('Nenhum dispositivo conectado para receber');
     return null;
   }
 
@@ -68,9 +68,7 @@ export async function resendFile(file: SharedFile): Promise<void> {
   if (!source) return;
   const peers = onlinePeerAddresses();
   if (peers.length === 0) {
-    toast.error('Nenhum dispositivo conectado', {
-      description: 'Abra o Xhare em outro PC da mesma rede para reenviar.',
-    });
+    notifyError('Nenhum dispositivo conectado para reenviar');
     return;
   }
   useFilesStore.getState().updateFile(file.id, { status: 'sending', progress: 0 });
@@ -78,7 +76,6 @@ export async function resendFile(file: SharedFile): Promise<void> {
 }
 
 export async function discardFile(file: SharedFile): Promise<void> {
-  // We only ever delete the cache copy — never a user-saved file.
   try {
     await discardCachedFile(file.id);
   } catch (err) {
@@ -105,30 +102,22 @@ export async function saveFile(
   destinationDir: string,
 ): Promise<string | null> {
   if (!file.cachedPath) return null;
-  const toastId = toast.loading(`Salvando ${file.name}…`);
   try {
     const finalPath = await saveCachedRust(file.id, file.name, destinationDir);
     useFilesStore.getState().updateFile(file.id, { savedPath: finalPath });
     useFilesStore.getState().markRead(file.id);
     const savedFile: SharedFile = { ...file, savedPath: finalPath };
-    toast.success(`${file.name} salvo`, {
-      id: toastId,
-      description: destinationDir,
-      action: {
-        label: 'Abrir',
-        onClick: () => void openFile(savedFile),
-      },
-      cancel: {
-        label: showInFolderLabel(),
-        onClick: () => void showInFolder(savedFile),
-      },
+    notify({
+      title: `${file.name} salvo`,
+      actions: [
+        { label: 'Abrir', onClick: () => void openFile(savedFile) },
+        { label: revealLabel(), onClick: () => void showInFolder(savedFile) },
+      ],
     });
     return finalPath;
   } catch (err) {
-    toast.error('Falha ao salvar', {
-      id: toastId,
-      description: String(err),
-    });
+    notifyError(`Falha ao salvar ${file.name}`);
+    console.error('saveFile:', err);
     return null;
   }
 }
@@ -138,19 +127,13 @@ export async function copyFile(file: SharedFile): Promise<void> {
   if (!path) return;
   try {
     await navigator.clipboard.writeText(path);
-    toast.success('Caminho copiado', { description: path });
+    notify({ title: 'Caminho copiado' });
   } catch {
-    toast.error('Não foi possível copiar');
+    notifyError('Não foi possível copiar');
   }
 }
 
 export async function cancelTransfer(id: string): Promise<void> {
   // V3.1 — wire to Rust cancellation flag
   useFilesStore.getState().updateFile(id, { status: 'error' });
-}
-
-function showInFolderLabel(): string {
-  const ua = navigator.userAgent.toLowerCase();
-  if (ua.includes('win')) return 'Mostrar no Explorer';
-  return 'Mostrar no Finder';
 }
