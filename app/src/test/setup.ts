@@ -56,8 +56,8 @@ vi.mock('@tauri-apps/api/core', () => ({
     if (
       cmd === 'save_cached_file' ||
       cmd === 'discard_cached_file' ||
-      cmd === 'open_cached_file' ||
-      cmd === 'show_cached_file'
+      cmd === 'open_path' ||
+      cmd === 'reveal_path'
     ) {
       return null;
     }

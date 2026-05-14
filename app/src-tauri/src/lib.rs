@@ -20,8 +20,8 @@ pub fn run() {
             transfer::send_file,
             transfer::save_cached_file,
             transfer::discard_cached_file,
-            transfer::open_cached_file,
-            transfer::show_cached_file,
+            transfer::open_path,
+            transfer::reveal_path,
         ])
         .setup(|app| {
             discovery::setup(app);

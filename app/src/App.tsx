@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { Toaster } from 'sonner';
 
 import { TitleBar } from '@/components/TitleBar';
 import { Tooltip } from '@/components/Tooltip';
@@ -31,6 +32,22 @@ export function App() {
           <FileFeed isDragging={isDragging} />
         </div>
       </div>
+
+      <Toaster
+        theme="dark"
+        position="bottom-right"
+        toastOptions={{
+          classNames: {
+            toast:
+              'bg-zinc-800 border border-zinc-700 text-zinc-100 shadow-lg backdrop-blur-md',
+            title: 'text-sm font-medium tracking-tight',
+            description: 'text-xs text-zinc-400',
+            error: 'border-red-500/40',
+            success: 'border-green-500/40',
+            info: 'border-blue-500/40',
+          },
+        }}
+      />
     </Tooltip.Provider>
   );
 }

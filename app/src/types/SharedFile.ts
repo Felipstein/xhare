@@ -18,5 +18,8 @@ export type SharedFile = {
   failedTo?: string[];
   isRead: boolean;
   isPinned: boolean;
+  /** Location in the OS cache dir; set on received files until discarded. */
   cachedPath?: string;
+  /** Final location after the user saved the file to disk. */
+  savedPath?: string;
 };

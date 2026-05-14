@@ -378,29 +378,51 @@ pub fn discard_cached_file(file_id: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Open an arbitrary absolute path in the user's default app.
 #[tauri::command]
-pub fn open_cached_file<R: Runtime>(app: AppHandle<R>, file_id: String, name: String) -> Result<(), String> {
-    let _ = app;
-    let cache = cache_dir().ok_or_else(|| "no cache dir".to_string())?;
-    let path = cache.join(&file_id).join(&name);
-    if !path.is_file() {
-        return Err("cache file missing".into());
+pub fn open_path(path: String) -> Result<(), String> {
+    let p = std::path::Path::new(&path);
+    if !p.exists() {
+        return Err(format!("path not found: {path}"));
     }
-    open_path(&path)
+    spawn_open(p)
 }
 
+/// Reveal a file in the system file manager (Finder on macOS, Explorer on
+/// Windows). On macOS we use `open -R` so the file is highlighted; on Windows
+/// `explorer /select,<path>` does the same. Falls back to opening the parent
+/// directory if those flags aren't available.
 #[tauri::command]
-pub fn show_cached_file(file_id: String, name: String) -> Result<(), String> {
-    let cache = cache_dir().ok_or_else(|| "no cache dir".to_string())?;
-    let path = cache.join(&file_id).join(&name);
-    if !path.exists() {
-        return Err("cache file missing".into());
+pub fn reveal_path(path: String) -> Result<(), String> {
+    let p = std::path::Path::new(&path);
+    if !p.exists() {
+        return Err(format!("path not found: {path}"));
     }
-    let parent = path.parent().ok_or_else(|| "no parent dir".to_string())?;
-    open_path(parent)
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg("-R")
+            .arg(p)
+            .spawn()
+            .map_err(|e| format!("open -R: {e}"))?;
+        return Ok(());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(format!("/select,{}", path))
+            .spawn()
+            .map_err(|e| format!("explorer /select: {e}"))?;
+        return Ok(());
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        let parent = p.parent().ok_or_else(|| "no parent dir".to_string())?;
+        spawn_open(parent)
+    }
 }
 
-fn open_path(path: &std::path::Path) -> Result<(), String> {
+fn spawn_open(path: &std::path::Path) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
         std::process::Command::new("open")

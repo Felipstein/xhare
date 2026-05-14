@@ -56,12 +56,14 @@ export function discardCachedFile(fileId: string): Promise<void> {
   return invoke('discard_cached_file', { fileId });
 }
 
-export function openCachedFile(fileId: string, name: string): Promise<void> {
-  return invoke('open_cached_file', { fileId, name });
+/** Open an absolute path in the user's default app. */
+export function openPath(path: string): Promise<void> {
+  return invoke('open_path', { path });
 }
 
-export function showCachedFile(fileId: string, name: string): Promise<void> {
-  return invoke('show_cached_file', { fileId, name });
+/** Reveal a file in Finder (macOS) / Explorer (Windows) with the file highlighted. */
+export function revealPath(path: string): Promise<void> {
+  return invoke('reveal_path', { path });
 }
 
 export type TransferHandlers = {

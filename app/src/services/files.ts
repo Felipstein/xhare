@@ -1,12 +1,14 @@
+import { toast } from 'sonner';
+
 import { useDevicesStore } from '@/stores/devicesStore';
 import { useFilesStore } from '@/stores/filesStore';
 
 import {
   discardCachedFile,
-  openCachedFile,
+  openPath,
+  revealPath,
   saveCachedFile as saveCachedRust,
   sendFile as sendFileRust,
-  showCachedFile,
   type SentFile,
 } from './transfer';
 
@@ -26,14 +28,20 @@ function onlinePeerAddresses(): string[] {
     .map((d) => d.address);
 }
 
-/**
- * Dispatches a file to every currently-online peer. Adds an optimistic
- * `sending` row to the store; the real status is then driven by Rust events
- * (see useTransferSubscription).
- */
+/** Pick the most "real" location for this file — saved if the user already
+ *  hit Salvar, otherwise the cache copy. */
+function effectivePath(file: SharedFile): string | undefined {
+  return file.savedPath ?? file.cachedPath;
+}
+
 export async function sendFromPath(sourcePath: string): Promise<SentFile | null> {
   const peers = onlinePeerAddresses();
-  if (peers.length === 0) return null;
+  if (peers.length === 0) {
+    toast.error('Nenhum dispositivo conectado', {
+      description: 'Abra o Xhare em outro PC da mesma rede para começar a compartilhar.',
+    });
+    return null;
+  }
 
   const sent = await sendFileRust(sourcePath, peers);
   const file: SharedFile = {
@@ -56,31 +64,40 @@ export async function sendFromPath(sourcePath: string): Promise<SentFile | null>
 }
 
 export async function resendFile(file: SharedFile): Promise<void> {
-  if (!file.cachedPath) return;
+  const source = effectivePath(file);
+  if (!source) return;
   const peers = onlinePeerAddresses();
-  if (peers.length === 0) return;
+  if (peers.length === 0) {
+    toast.error('Nenhum dispositivo conectado', {
+      description: 'Abra o Xhare em outro PC da mesma rede para reenviar.',
+    });
+    return;
+  }
   useFilesStore.getState().updateFile(file.id, { status: 'sending', progress: 0 });
-  await sendFileRust(file.cachedPath, peers);
+  await sendFileRust(source, peers);
 }
 
-export async function discardFile(id: string): Promise<void> {
+export async function discardFile(file: SharedFile): Promise<void> {
+  // We only ever delete the cache copy — never a user-saved file.
   try {
-    await discardCachedFile(id);
+    await discardCachedFile(file.id);
   } catch (err) {
     console.warn('discardCachedFile:', err);
   }
-  useFilesStore.getState().removeFile(id);
+  useFilesStore.getState().removeFile(file.id);
 }
 
 export async function openFile(file: SharedFile): Promise<void> {
-  if (!file.cachedPath) return;
-  await openCachedFile(file.id, file.name);
+  const path = effectivePath(file);
+  if (!path) return;
+  await openPath(path);
   useFilesStore.getState().markRead(file.id);
 }
 
 export async function showInFolder(file: SharedFile): Promise<void> {
-  if (!file.cachedPath) return;
-  await showCachedFile(file.id, file.name);
+  const path = effectivePath(file);
+  if (!path) return;
+  await revealPath(path);
 }
 
 export async function saveFile(
@@ -88,17 +105,52 @@ export async function saveFile(
   destinationDir: string,
 ): Promise<string | null> {
   if (!file.cachedPath) return null;
-  const finalPath = await saveCachedRust(file.id, file.name, destinationDir);
-  useFilesStore.getState().updateFile(file.id, { cachedPath: finalPath });
-  useFilesStore.getState().markRead(file.id);
-  return finalPath;
+  const toastId = toast.loading(`Salvando ${file.name}…`);
+  try {
+    const finalPath = await saveCachedRust(file.id, file.name, destinationDir);
+    useFilesStore.getState().updateFile(file.id, { savedPath: finalPath });
+    useFilesStore.getState().markRead(file.id);
+    const savedFile: SharedFile = { ...file, savedPath: finalPath };
+    toast.success(`${file.name} salvo`, {
+      id: toastId,
+      description: destinationDir,
+      action: {
+        label: 'Abrir',
+        onClick: () => void openFile(savedFile),
+      },
+      cancel: {
+        label: showInFolderLabel(),
+        onClick: () => void showInFolder(savedFile),
+      },
+    });
+    return finalPath;
+  } catch (err) {
+    toast.error('Falha ao salvar', {
+      id: toastId,
+      description: String(err),
+    });
+    return null;
+  }
 }
 
-export async function copyFile(_file: SharedFile): Promise<void> {
-  // V3.1 — write image to clipboard via tauri-plugin-clipboard-manager
+export async function copyFile(file: SharedFile): Promise<void> {
+  const path = effectivePath(file);
+  if (!path) return;
+  try {
+    await navigator.clipboard.writeText(path);
+    toast.success('Caminho copiado', { description: path });
+  } catch {
+    toast.error('Não foi possível copiar');
+  }
 }
 
 export async function cancelTransfer(id: string): Promise<void> {
   // V3.1 — wire to Rust cancellation flag
   useFilesStore.getState().updateFile(id, { status: 'error' });
+}
+
+function showInFolderLabel(): string {
+  const ua = navigator.userAgent.toLowerCase();
+  if (ua.includes('win')) return 'Mostrar no Explorer';
+  return 'Mostrar no Finder';
 }

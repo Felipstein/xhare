@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { usePlatform } from '@/hooks/usePlatform';
 import { cn } from '@/utils/cn';
 
 import type { SharedFile } from '@/types/SharedFile';
@@ -58,6 +59,9 @@ export function ReceivedActions({
   onShowInFolder,
   onDiscard,
 }: ReceivedActionsProps) {
+  const platform = usePlatform();
+  const revealLabel = platform === 'windows' ? 'Mostrar no Explorer' : 'Mostrar no Finder';
+
   return (
     <div className="flex items-center gap-0.5">
       <IconButton label="Salvar" onClick={onSave}>
@@ -69,7 +73,7 @@ export function ReceivedActions({
       <IconButton label="Copiar" onClick={onCopy}>
         <CopyIcon />
       </IconButton>
-      <IconButton label="Mostrar no Finder" onClick={onShowInFolder}>
+      <IconButton label={revealLabel} onClick={onShowInFolder}>
         <FolderOpenIcon />
       </IconButton>
 

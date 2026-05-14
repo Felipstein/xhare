@@ -30,7 +30,7 @@ export function useFiles() {
     void showInFolder(file);
   };
   const onDiscard = (file: SharedFile): void => {
-    void discardFile(file.id);
+    void discardFile(file);
   };
   const onResend = (file: SharedFile): void => {
     void resendFile(file);

@@ -91,7 +91,7 @@ describe('FileRow', () => {
     expect(screen.getByRole('button', { name: 'Salvar' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Abrir' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Copiar' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Mostrar no Finder' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Mostrar no/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Descartar' })).toBeInTheDocument();
   });
 
