@@ -42,7 +42,9 @@ function FromCell({ file }: { file: SharedFile }) {
     );
   }
 
-  const device = devices.find((d) => d.name === file.from);
+  const device = devices.find(
+    (d) => d.name === file.from || (file.fromAddress && d.address === file.fromAddress),
+  );
   const isOnline = device?.status === 'ONLINE';
   return (
     <span className="inline-flex items-center gap-1.5 text-xs text-zinc-400 whitespace-nowrap min-w-0">

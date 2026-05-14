@@ -53,6 +53,7 @@ pub struct ReceivedFile {
     pub name: String,
     pub size: u64,
     pub from: String,
+    pub from_address: Option<String>,
     pub cached_path: String,
 }
 
@@ -132,6 +133,7 @@ fn handle_incoming<R: Runtime>(
     stream
         .set_read_timeout(Some(Duration::from_secs(30)))
         .ok();
+    let peer_address = stream.peer_addr().ok().map(|a| a.ip().to_string());
     let mut reader = BufReader::new(stream);
 
     let header_len = match reader.read_u32::<BigEndian>() {
@@ -218,6 +220,7 @@ fn handle_incoming<R: Runtime>(
             name: header.name.clone(),
             size: header.size,
             from: header.from.clone(),
+            from_address: peer_address,
             cached_path: path.to_string_lossy().to_string(),
         },
     );

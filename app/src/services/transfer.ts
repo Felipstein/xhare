@@ -13,6 +13,7 @@ export type ReceivedFile = {
   name: string;
   size: number;
   from: string;
+  fromAddress?: string;
   cachedPath: string;
 };
 

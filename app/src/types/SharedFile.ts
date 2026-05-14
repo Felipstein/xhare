@@ -10,6 +10,8 @@ export type SharedFile = {
   extension?: string;
   thumbnailUrl?: string;
   from: string;
+  /** Peer IP captured when receiving — used to match against devicesStore when names diverge. */
+  fromAddress?: string;
   sentAt: Date;
   status: FileStatus;
   progress?: number;
