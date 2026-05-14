@@ -1,6 +1,6 @@
 [package]
 name = "xhare"
-version = "0.1.0"
+version = "0.1.1"
 description = "Real-time file sharing between Macs and PCs on the same LAN."
 authors = ["Felipe Oliveira <luisfelipe-oliveira@outlook.com.br>"]
 edition = "2021"

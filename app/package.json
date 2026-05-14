@@ -1,7 +1,7 @@
 {
   "name": "xhare",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Real-time file sharing between Macs and PCs on the same local network. Drag, drop, done.",
   "type": "module",
   "author": "Felipe Oliveira",
