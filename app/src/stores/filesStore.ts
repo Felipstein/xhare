@@ -11,6 +11,7 @@ type FilesActions = {
   setFiles: (files: SharedFile[]) => void;
   addFile: (file: SharedFile) => void;
   updateFile: (id: string, patch: Partial<SharedFile>) => void;
+  replaceFile: (oldId: string, file: SharedFile) => void;
   removeFile: (id: string) => void;
   markRead: (id: string) => void;
   markAllRead: () => void;
@@ -33,6 +34,12 @@ export const useFilesStore = create<FilesState & FilesActions>((set) => ({
   updateFile: (id, patch) =>
     set((s) => ({
       files: s.files.map((f) => (f.id === id ? { ...f, ...patch } : f)),
+    })),
+
+  replaceFile: (oldId, file) =>
+    set((s) => ({
+      files: s.files.map((f) => (f.id === oldId ? file : f)),
+      selectedId: s.selectedId === oldId ? file.id : s.selectedId,
     })),
 
   removeFile: (id) =>

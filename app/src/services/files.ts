@@ -73,8 +73,19 @@ export async function resendFile(file: SharedFile): Promise<void> {
     notifyError('Nenhum dispositivo conectado para reenviar');
     return;
   }
-  useFilesStore.getState().updateFile(file.id, { status: 'sending', progress: 0 });
-  await sendFileRust(source, peers);
+  // Rust assigns a fresh UUID per send. Swap the row's id to the new one so
+  // future transfer-progress / transfer-complete events match this row.
+  const sent = await sendFileRust(source, peers);
+  useFilesStore.getState().replaceFile(file.id, {
+    ...file,
+    id: sent.id,
+    status: 'sending',
+    progress: 0,
+    sentAt: new Date(),
+    isRead: true,
+    deliveredTo: [],
+    failedTo: [],
+  });
 }
 
 export async function discardFile(file: SharedFile): Promise<void> {
