@@ -7,8 +7,11 @@ import { DeviceList } from '@/features/devices/DeviceList';
 import { useDeviceSubscription } from '@/features/devices/useDeviceSubscription';
 import { FileFeed } from '@/features/file-feed/FileFeed';
 import { useTransferSubscription } from '@/features/file-feed/useTransferSubscription';
+import { useClipboardPaste } from '@/hooks/useClipboardPaste';
+import { useCopySelectedShortcut } from '@/hooks/useCopySelectedShortcut';
 import { useDragDrop } from '@/hooks/useDragDrop';
 import { useNativeDragDrop } from '@/hooks/useNativeDragDrop';
+import { useSelectAllShortcut } from '@/hooks/useSelectAllShortcut';
 import { bootstrapSettings } from '@/stores/settingsStore';
 
 export function App() {
@@ -17,6 +20,9 @@ export function App() {
   useDeviceSubscription();
   useTransferSubscription();
   useNativeDragDrop(begin, end);
+  useClipboardPaste();
+  useSelectAllShortcut();
+  useCopySelectedShortcut();
 
   useEffect(() => {
     void bootstrapSettings();

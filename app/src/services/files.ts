@@ -3,6 +3,7 @@ import { useDevicesStore } from '@/stores/devicesStore';
 import { useFilesStore } from '@/stores/filesStore';
 
 import {
+  copyPathsToClipboard,
   discardCachedFile,
   openPath,
   revealPath,
@@ -114,6 +115,54 @@ export async function discardFile(file: SharedFile): Promise<void> {
   useFilesStore.getState().removeFile(file.id);
 }
 
+/**
+ * Save every selected received file into `destinationDir`. Outgoing files are
+ * skipped (no cache to copy from). Returns the count of files actually saved.
+ */
+export async function saveManyFiles(
+  files: SharedFile[],
+  destinationDir: string,
+): Promise<number> {
+  const targets = files.filter((f) => f.cachedPath && !f.savedPath);
+  if (targets.length === 0) return 0;
+  let saved = 0;
+  for (const f of targets) {
+    try {
+      if (!f.cachedPath) continue;
+      const finalPath = await saveCachedRust(f.cachedPath, f.name, destinationDir);
+      useFilesStore.getState().updateFile(f.id, { savedPath: finalPath });
+      useFilesStore.getState().markRead(f.id);
+      saved += 1;
+    } catch (err) {
+      console.error('saveManyFiles: failed for', f.name, err);
+    }
+  }
+  notify({
+    title:
+      saved === targets.length
+        ? `${saved} arquivo(s) salvo(s)`
+        : `${saved}/${targets.length} arquivo(s) salvo(s)`,
+  });
+  return saved;
+}
+
+/**
+ * Remove every selected file. Received files have their cache cleaned; outgoing
+ * files are removed from the feed only (the source on disk is untouched).
+ */
+export async function removeManyFiles(files: SharedFile[]): Promise<void> {
+  for (const f of files) {
+    if (f.cachedPath) {
+      try {
+        await discardCachedFile(f.id);
+      } catch (err) {
+        console.warn('discardCachedFile:', err);
+      }
+    }
+    useFilesStore.getState().removeFile(f.id);
+  }
+}
+
 export async function openFile(file: SharedFile): Promise<void> {
   const path = effectivePath(file);
   if (!path) return;
@@ -133,7 +182,7 @@ export async function saveFile(
 ): Promise<string | null> {
   if (!file.cachedPath) return null;
   try {
-    const finalPath = await saveCachedRust(file.id, file.name, destinationDir);
+    const finalPath = await saveCachedRust(file.cachedPath, file.name, destinationDir);
     useFilesStore.getState().updateFile(file.id, { savedPath: finalPath });
     useFilesStore.getState().markRead(file.id);
     const savedFile: SharedFile = { ...file, savedPath: finalPath };
@@ -156,10 +205,37 @@ export async function copyFile(file: SharedFile): Promise<void> {
   const path = effectivePath(file);
   if (!path) return;
   try {
-    await navigator.clipboard.writeText(path);
-    notify({ title: 'Caminho copiado' });
-  } catch {
+    await copyPathsToClipboard([path]);
+    notify({ title: `${file.name} copiado` });
+  } catch (err) {
+    console.error('copyFile:', err);
     notifyError('Não foi possível copiar');
+  }
+}
+
+/**
+ * Copy every selected file as a real OS file reference. Paste in Finder /
+ * Explorer drops the files; paste in chat apps attaches them where supported.
+ */
+export async function copyManyFiles(files: SharedFile[]): Promise<number> {
+  const paths = files
+    .map((f) => effectivePath(f))
+    .filter((p): p is string => Boolean(p));
+  if (paths.length === 0) {
+    notifyError('Nenhum arquivo selecionado tem caminho disponível');
+    return 0;
+  }
+  try {
+    await copyPathsToClipboard(paths);
+    notify({
+      title:
+        paths.length === 1 ? `${files[0].name} copiado` : `${paths.length} arquivos copiados`,
+    });
+    return paths.length;
+  } catch (err) {
+    console.error('copyManyFiles:', err);
+    notifyError('Não foi possível copiar');
+    return 0;
   }
 }
 

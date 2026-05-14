@@ -2,7 +2,7 @@ import { cn } from '@/utils/cn';
 
 type Props = {
   value: number;
-  variant?: 'send' | 'receive';
+  variant?: 'send' | 'receive' | 'zip';
   className?: string;
 };
 
@@ -21,6 +21,10 @@ export function ProgressBar({ value, variant = 'send', className }: Props) {
         className={cn('h-full transition-[width] duration-300 ease-out', {
           'bg-blue-500': variant === 'send',
           'bg-green-500': variant === 'receive',
+          // Striped amber bar — animated diagonal stripes give the zip its own
+          // visual language distinct from a flat transfer fill.
+          'bg-amber-400 bg-[linear-gradient(135deg,rgba(255,255,255,0.18)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.18)_50%,rgba(255,255,255,0.18)_75%,transparent_75%,transparent)] bg-[length:12px_12px] animate-[zip-stripes_700ms_linear_infinite]':
+            variant === 'zip',
         })}
       />
     </div>

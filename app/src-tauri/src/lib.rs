@@ -23,6 +23,9 @@ pub fn run() {
             transfer::send_file,
             transfer::save_cached_file,
             transfer::discard_cached_file,
+            transfer::save_clipboard_blob,
+            transfer::read_clipboard_paths,
+            transfer::copy_paths_to_clipboard,
             transfer::open_path,
             transfer::reveal_path,
             logger::read_log_lines,
@@ -48,6 +51,7 @@ pub fn run() {
     app.run(|_app, event| {
         if matches!(event, tauri::RunEvent::Exit) {
             discovery::shutdown();
+            transfer::clear_cache();
         }
     });
 }

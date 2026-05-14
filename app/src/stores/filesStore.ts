@@ -5,6 +5,9 @@ import type { SharedFile } from '@/types/SharedFile';
 type FilesState = {
   files: SharedFile[];
   selectedId: string | null;
+  /** Multi-selection (checkbox bulk actions). Distinct from `selectedId` which
+   * is a single-row focus pointer used by keyboard navigation. */
+  selectedIds: string[];
 };
 
 type FilesActions = {
@@ -16,12 +19,16 @@ type FilesActions = {
   markRead: (id: string) => void;
   markAllRead: () => void;
   select: (id: string | null) => void;
+  toggleSelect: (id: string) => void;
+  setSelectedIds: (ids: string[]) => void;
+  clearSelection: () => void;
   reset: () => void;
 };
 
 const initialState: FilesState = {
   files: [],
   selectedId: null,
+  selectedIds: [],
 };
 
 export const useFilesStore = create<FilesState & FilesActions>((set) => ({
@@ -46,6 +53,7 @@ export const useFilesStore = create<FilesState & FilesActions>((set) => ({
     set((s) => ({
       files: s.files.filter((f) => f.id !== id),
       selectedId: s.selectedId === id ? null : s.selectedId,
+      selectedIds: s.selectedIds.filter((sid) => sid !== id),
     })),
 
   markRead: (id) =>
@@ -59,6 +67,17 @@ export const useFilesStore = create<FilesState & FilesActions>((set) => ({
     })),
 
   select: (selectedId) => set({ selectedId }),
+
+  toggleSelect: (id) =>
+    set((s) => ({
+      selectedIds: s.selectedIds.includes(id)
+        ? s.selectedIds.filter((sid) => sid !== id)
+        : [...s.selectedIds, id],
+    })),
+
+  setSelectedIds: (selectedIds) => set({ selectedIds }),
+
+  clearSelection: () => set({ selectedIds: [] }),
 
   reset: () => set(initialState),
 }));

@@ -53,11 +53,13 @@ export function LogViewer({ children }: PropsWithChildren) {
 
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
-    return lines.filter((line) => {
-      if (filter !== 'ALL' && line.level !== filter) return false;
-      if (s && !line.message.toLowerCase().includes(s)) return false;
-      return true;
-    });
+    return lines
+      .filter((line) => {
+        if (filter !== 'ALL' && line.level !== filter) return false;
+        if (s && !line.message.toLowerCase().includes(s)) return false;
+        return true;
+      })
+      .reverse();
   }, [lines, filter, search]);
 
   const openLogsFolder = async (): Promise<void> => {

@@ -1,6 +1,7 @@
 import { useDevicesStore } from '@/stores/devicesStore';
 import { useConnectionStore } from '@/stores/connectionStore';
 
+import { BulkActionBar } from './BulkActionBar';
 import { DragOverlay } from './DragOverlay';
 import { EmptyFiles } from './EmptyFiles';
 import { FileRow } from './FileRow';
@@ -35,6 +36,8 @@ export function FileFeed({ isDragging = false }: Props) {
           ))}
         </div>
       )}
+
+      <BulkActionBar />
 
       <DragOverlay isVisible={isDragging && !showNetworkError} />
     </section>

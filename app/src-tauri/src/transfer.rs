@@ -83,10 +83,66 @@ struct ErrorPayload {
     message: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ZipStartPayload {
+    id: String,
+    name: String,
+    total: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ZipProgressPayload {
+    id: String,
+    bytes: u64,
+    total: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ZipCompletePayload {
+    id: String,
+    name: String,
+    size: u64,
+}
+
 // ─── public surface ───────────────────────────────────────────────────────
 
 pub fn cache_dir() -> Option<PathBuf> {
     Some(dirs::cache_dir()?.join(APP_DIR))
+}
+
+/// Wipe everything under the cache dir. Called on app exit so received files
+/// don't accumulate forever — the cache is meant to be transient, the user's
+/// real copy lives wherever they chose to "Salvar". Best-effort: errors are
+/// logged, never surfaced, since this runs while the app is tearing down.
+pub fn clear_cache() {
+    let Some(dir) = cache_dir() else { return };
+    if !dir.is_dir() {
+        return;
+    }
+    match fs::read_dir(&dir) {
+        Ok(entries) => {
+            let mut removed: u32 = 0;
+            for entry in entries.flatten() {
+                let path = entry.path();
+                let result = if path.is_dir() {
+                    fs::remove_dir_all(&path)
+                } else {
+                    fs::remove_file(&path)
+                };
+                match result {
+                    Ok(_) => removed += 1,
+                    Err(e) => log::warn!("cache cleanup: failed to remove {}: {e}", path.display()),
+                }
+            }
+            if removed > 0 {
+                log::info!("cache cleared: removed {removed} entr(y/ies) from {}", dir.display());
+            }
+        }
+        Err(e) => log::warn!("cache cleanup: read_dir failed for {}: {e}", dir.display()),
+    }
 }
 
 /// Boot the TCP listener. Each accepted connection is handled on its own
@@ -244,18 +300,55 @@ pub fn send_file<R: Runtime>(
     source_path: String,
     peers: Vec<String>,
 ) -> Result<SentFile, String> {
-    let path = PathBuf::from(&source_path);
-    if !path.is_file() {
-        return Err(format!("not a file: {source_path}"));
+    let original = PathBuf::from(&source_path);
+    let from = discovery::own_device_name();
+
+    if original.is_dir() {
+        // Folders go through a background coordinator: it emits `zip-start`,
+        // does the (slow) zip, emits `zip-complete` with the real name+size,
+        // fans the send threads out, and finally deletes the temp zip. We
+        // return immediately with a provisional payload so the UI keeps
+        // responding while the zip runs.
+        let dir_name = original
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("folder")
+            .to_string();
+        let provisional = SentFile {
+            id: file_id.clone(),
+            name: dir_name.clone(),
+            size: 0,
+            from: from.clone(),
+        };
+
+        let app_for_thread = app.clone();
+        let id_for_thread = file_id.clone();
+        let from_for_thread = from.clone();
+        thread::spawn(move || {
+            run_folder_send(
+                app_for_thread,
+                id_for_thread,
+                original,
+                dir_name,
+                from_for_thread,
+                peers,
+            );
+        });
+
+        return Ok(provisional);
     }
-    let metadata = fs::metadata(&path).map_err(|e| format!("stat: {e}"))?;
-    let size = metadata.len();
-    let name = path
+
+    if !original.is_file() {
+        return Err(format!("not a file or directory: {source_path}"));
+    }
+
+    let name = original
         .file_name()
         .and_then(|s| s.to_str())
         .unwrap_or("file")
         .to_string();
-    let from = discovery::own_device_name();
+    let metadata = fs::metadata(&original).map_err(|e| format!("stat: {e}"))?;
+    let size = metadata.len();
     let header = FileHeader {
         file_id: file_id.clone(),
         name: name.clone(),
@@ -266,7 +359,7 @@ pub fn send_file<R: Runtime>(
     for peer in &peers {
         let app = app.clone();
         let header = header.clone();
-        let path = path.clone();
+        let path = original.clone();
         let peer = peer.clone();
         thread::spawn(move || {
             if let Err(e) = send_to_peer(&app, &path, &header, &peer) {
@@ -290,6 +383,209 @@ pub fn send_file<R: Runtime>(
         size,
         from,
     })
+}
+
+/// Coordinator thread for sending a directory: emit zip events, zip, fan out
+/// per-peer send threads, await them, then clean up the temp zip.
+fn run_folder_send<R: Runtime>(
+    app: AppHandle<R>,
+    file_id: String,
+    dir_path: PathBuf,
+    dir_name: String,
+    from: String,
+    peers: Vec<String>,
+) {
+    let zip_name = format!("{}.zip", dir_name);
+
+    // Pre-scan: sum uncompressed sizes so the frontend can show a real
+    // percentage during zip. Cheap compared to the actual compression.
+    let total_bytes = scan_total_bytes(&dir_path);
+    let _ = app.emit(
+        "transfer-zip-start",
+        ZipStartPayload {
+            id: file_id.clone(),
+            name: zip_name.clone(),
+            total: total_bytes,
+        },
+    );
+
+    let zip_path = match zip_dir_to_temp(&dir_path, &app, &file_id, total_bytes) {
+        Ok(p) => p,
+        Err(e) => {
+            log::warn!("zip failed for {}: {e}", dir_path.display());
+            let _ = app.emit(
+                "transfer-error",
+                ErrorPayload {
+                    id: file_id,
+                    direction: "send",
+                    peer: None,
+                    message: format!("zip: {e}"),
+                },
+            );
+            return;
+        }
+    };
+
+    let size = match fs::metadata(&zip_path) {
+        Ok(m) => m.len(),
+        Err(e) => {
+            log::warn!("stat zip failed: {e}");
+            let _ = fs::remove_file(&zip_path);
+            let _ = app.emit(
+                "transfer-error",
+                ErrorPayload {
+                    id: file_id,
+                    direction: "send",
+                    peer: None,
+                    message: format!("stat zip: {e}"),
+                },
+            );
+            return;
+        }
+    };
+
+    let _ = app.emit(
+        "transfer-zip-complete",
+        ZipCompletePayload {
+            id: file_id.clone(),
+            name: zip_name.clone(),
+            size,
+        },
+    );
+
+    let header = FileHeader {
+        file_id: file_id.clone(),
+        name: zip_name,
+        size,
+        from,
+    };
+
+    let mut handles = Vec::with_capacity(peers.len());
+    for peer in &peers {
+        let app = app.clone();
+        let header = header.clone();
+        let path = zip_path.clone();
+        let peer = peer.clone();
+        let handle = thread::spawn(move || {
+            if let Err(e) = send_to_peer(&app, &path, &header, &peer) {
+                log::warn!("send to {peer} failed: {e}");
+                let _ = app.emit(
+                    "transfer-error",
+                    ErrorPayload {
+                        id: header.file_id,
+                        direction: "send",
+                        peer: Some(peer),
+                        message: e,
+                    },
+                );
+            }
+        });
+        handles.push(handle);
+    }
+
+    for h in handles {
+        let _ = h.join();
+    }
+    match fs::remove_file(&zip_path) {
+        Ok(_) => log::info!("temp zip cleaned up: {}", zip_path.display()),
+        Err(e) => log::warn!("temp zip cleanup failed for {}: {e}", zip_path.display()),
+    }
+}
+
+/// Walk `src` and return the sum of file sizes (best-effort: unreadable
+/// entries are skipped). Used as the denominator for zip progress events.
+fn scan_total_bytes(src: &std::path::Path) -> u64 {
+    let mut total: u64 = 0;
+    for entry in walkdir::WalkDir::new(src).into_iter().filter_map(|e| e.ok()) {
+        if entry.file_type().is_file() {
+            if let Ok(meta) = entry.metadata() {
+                total = total.saturating_add(meta.len());
+            }
+        }
+    }
+    total
+}
+
+/// Zip every entry under `src` into a freshly-named temp file. Emits
+/// `transfer-zip-progress` events as compression proceeds so the UI can show a
+/// real percentage. Paths inside the archive use forward slashes so the
+/// archive opens cleanly on every OS.
+fn zip_dir_to_temp<R: Runtime>(
+    src: &std::path::Path,
+    app: &AppHandle<R>,
+    file_id: &str,
+    total_bytes: u64,
+) -> Result<PathBuf, String> {
+    let base = src
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("folder");
+    let id = uuid::Uuid::new_v4();
+    let dest = std::env::temp_dir().join(format!("xhare-{id}-{base}.zip"));
+
+    let file = File::create(&dest).map_err(|e| format!("create zip: {e}"))?;
+    let mut zip = zip::ZipWriter::new(BufWriter::new(file));
+    let options: zip::write::SimpleFileOptions = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
+
+    let mut written: u64 = 0;
+    let mut last_emitted: u64 = 0;
+    // Emit at most once per 64KB of input read — keeps the channel from
+    // flooding for tiny files while still feeling smooth on big files.
+    const EMIT_EVERY: u64 = 64 * 1024;
+    let mut buf = vec![0u8; 64 * 1024];
+
+    for entry in walkdir::WalkDir::new(src) {
+        let entry = entry.map_err(|e| format!("walk: {e}"))?;
+        let p = entry.path();
+        let Ok(rel) = p.strip_prefix(src) else { continue };
+        if rel.as_os_str().is_empty() {
+            continue;
+        }
+        let rel_str = rel.to_string_lossy().replace('\\', "/");
+        if entry.file_type().is_dir() {
+            zip.add_directory(&rel_str, options)
+                .map_err(|e| format!("zip add_directory: {e}"))?;
+        } else if entry.file_type().is_file() {
+            zip.start_file(&rel_str, options)
+                .map_err(|e| format!("zip start_file: {e}"))?;
+            let mut f = File::open(p).map_err(|e| format!("open {}: {e}", p.display()))?;
+            loop {
+                let n = f.read(&mut buf).map_err(|e| format!("read: {e}"))?;
+                if n == 0 {
+                    break;
+                }
+                use std::io::Write;
+                zip.write_all(&buf[..n]).map_err(|e| format!("write zip: {e}"))?;
+                written = written.saturating_add(n as u64);
+                if written - last_emitted >= EMIT_EVERY {
+                    last_emitted = written;
+                    let _ = app.emit(
+                        "transfer-zip-progress",
+                        ZipProgressPayload {
+                            id: file_id.to_string(),
+                            bytes: written,
+                            total: total_bytes,
+                        },
+                    );
+                }
+            }
+        }
+        // Symlinks and other types are skipped.
+    }
+
+    // Final tick: guarantee the UI lands exactly at 100% before zip-complete.
+    let _ = app.emit(
+        "transfer-zip-progress",
+        ZipProgressPayload {
+            id: file_id.to_string(),
+            bytes: total_bytes,
+            total: total_bytes,
+        },
+    );
+
+    zip.finish().map_err(|e| format!("zip finish: {e}"))?;
+    Ok(dest)
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -368,22 +664,51 @@ fn send_to_peer<R: Runtime>(
 
 // ─── cache commands ───────────────────────────────────────────────────────
 
+/// Copy a previously-cached file to the user-chosen destination folder.
+/// `source_path` is the actual path in the OS cache; `output_name` is the
+/// desired filename in `destination_dir`. If a file with that name already
+/// exists, append `(1)`, `(2)`, … to the stem until a free slot is found.
 #[tauri::command]
 pub fn save_cached_file(
-    file_id: String,
-    name: String,
+    source_path: String,
+    output_name: String,
     destination_dir: String,
 ) -> Result<String, String> {
-    let cache = cache_dir().ok_or_else(|| "no cache dir".to_string())?;
-    let src = cache.join(&file_id).join(&name);
+    let src = PathBuf::from(&source_path);
     if !src.is_file() {
-        return Err(format!("cache file missing: {}", src.display()));
+        return Err(format!("cache file missing: {source_path}"));
     }
     let dest_dir = PathBuf::from(destination_dir);
     fs::create_dir_all(&dest_dir).map_err(|e| format!("create dest dir: {e}"))?;
-    let dest = dest_dir.join(&name);
+    let dest = unique_destination(&dest_dir, &output_name);
     fs::copy(&src, &dest).map_err(|e| format!("copy: {e}"))?;
     Ok(dest.to_string_lossy().to_string())
+}
+
+/// Return a path inside `dir` that doesn't collide with an existing file. If
+/// `name` is free, returns `dir/name`. Otherwise tries `dir/<stem> (1).<ext>`,
+/// `(2)`, etc. up to a sane cap.
+fn unique_destination(dir: &std::path::Path, name: &str) -> PathBuf {
+    let candidate = dir.join(name);
+    if !candidate.exists() {
+        return candidate;
+    }
+    let (stem, ext) = match name.rfind('.') {
+        Some(i) if i > 0 => (&name[..i], Some(&name[i + 1..])),
+        _ => (name, None),
+    };
+    for n in 1..10_000 {
+        let new_name = match ext {
+            Some(e) => format!("{stem} ({n}).{e}"),
+            None => format!("{stem} ({n})"),
+        };
+        let candidate = dir.join(new_name);
+        if !candidate.exists() {
+            return candidate;
+        }
+    }
+    // Shouldn't happen, but fall back to the original name (will overwrite).
+    dir.join(name)
 }
 
 #[tauri::command]
@@ -404,6 +729,183 @@ pub fn open_path(path: String) -> Result<(), String> {
         return Err(format!("path not found: {path}"));
     }
     spawn_open(p)
+}
+
+/// Read file paths from the OS clipboard. Returns an empty vec when the
+/// clipboard contains no files (e.g. it has text or image data instead). Uses
+/// `osascript` on macOS and PowerShell on Windows so we don't pull in
+/// platform-specific clipboard crates.
+#[tauri::command]
+pub fn read_clipboard_paths() -> Vec<String> {
+    #[cfg(target_os = "macos")]
+    {
+        // `the clipboard as «class furl»` only ever returns the first file,
+        // so we go through NSPasteboard via the AppleScriptObjC bridge.
+        // `readObjectsForClasses:{NSURL}` returns *every* file URL on the
+        // pasteboard, which is what we need for multi-file copies from Finder.
+        let script = r#"
+use framework "Foundation"
+use framework "AppKit"
+
+try
+    set pb to current application's NSPasteboard's generalPasteboard()
+    set theURLs to pb's readObjectsForClasses:{current application's NSURL} options:(missing value)
+    if theURLs is missing value then return ""
+    set output to ""
+    set urlCount to count of theURLs
+    repeat with i from 1 to urlCount
+        set u to item i of theURLs
+        set p to (u's |path|()) as text
+        if p is not "" then
+            set output to output & p & linefeed
+        end if
+    end repeat
+    return output
+on error
+    return ""
+end try
+        "#;
+        let out = std::process::Command::new("osascript")
+            .arg("-e")
+            .arg(script)
+            .output();
+        if let Ok(o) = out {
+            let s = String::from_utf8_lossy(&o.stdout);
+            return s
+                .lines()
+                .map(|l| l.trim().to_string())
+                .filter(|l| !l.is_empty())
+                .collect();
+        }
+        return Vec::new();
+    }
+    #[cfg(target_os = "windows")]
+    {
+        // FileDropList yields plain string paths, not FileInfo, so `$_` is
+        // what we want — `$_.FullName` was dropping every line.
+        let script = "Get-Clipboard -Format FileDropList | ForEach-Object { $_ }";
+        let out = std::process::Command::new("powershell")
+            .args(["-NoProfile", "-NonInteractive", "-Command", script])
+            .output();
+        if let Ok(o) = out {
+            let s = String::from_utf8_lossy(&o.stdout);
+            return s
+                .lines()
+                .map(|l| l.trim().to_string())
+                .filter(|l| !l.is_empty())
+                .collect();
+        }
+        return Vec::new();
+    }
+    #[allow(unreachable_code)]
+    Vec::new()
+}
+
+/// Write a list of file paths to the OS clipboard as a *file reference* (not
+/// plain text), so pasting in Finder/Explorer drops the actual files and
+/// pasting in chat apps (WhatsApp, iMessage, Telegram, …) attaches them as
+/// images/videos when applicable. Uses AppleScriptObjC (`NSPasteboard`) on
+/// macOS and `System.Windows.Forms.Clipboard.SetFileDropList` on Windows.
+#[tauri::command]
+pub fn copy_paths_to_clipboard(paths: Vec<String>) -> Result<(), String> {
+    if paths.is_empty() {
+        return Err("no paths".to_string());
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let mut adds = String::new();
+        for p in &paths {
+            // AppleScript string literal escaping — backslash and quote.
+            let escaped = p.replace('\\', "\\\\").replace('"', "\\\"");
+            adds.push_str(&format!(
+                "theURLs's addObject:(current application's NSURL's fileURLWithPath:\"{}\")\n",
+                escaped
+            ));
+        }
+        let script = format!(
+            "use framework \"Foundation\"\n\
+             use framework \"AppKit\"\n\
+             set theURLs to current application's NSMutableArray's array()\n\
+             {adds}\
+             set pb to current application's NSPasteboard's generalPasteboard()\n\
+             pb's clearContents()\n\
+             pb's writeObjects:theURLs\n"
+        );
+        let out = std::process::Command::new("osascript")
+            .arg("-e")
+            .arg(&script)
+            .output()
+            .map_err(|e| format!("osascript: {e}"))?;
+        if !out.status.success() {
+            return Err(format!(
+                "osascript failed: {}",
+                String::from_utf8_lossy(&out.stderr)
+            ));
+        }
+        return Ok(());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let mut lines = String::new();
+        lines.push_str(
+            "$col = New-Object System.Collections.Specialized.StringCollection\n",
+        );
+        for p in &paths {
+            let escaped = p.replace('\'', "''");
+            lines.push_str(&format!("[void]$col.Add('{}')\n", escaped));
+        }
+        let script = format!(
+            "Add-Type -AssemblyName System.Windows.Forms\n\
+             {lines}\
+             [System.Windows.Forms.Clipboard]::SetFileDropList($col)\n"
+        );
+        // -STA is required: clipboard APIs need a single-threaded apartment.
+        let out = std::process::Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-STA",
+                "-Command",
+                &script,
+            ])
+            .output()
+            .map_err(|e| format!("powershell: {e}"))?;
+        if !out.status.success() {
+            return Err(format!(
+                "powershell failed: {}",
+                String::from_utf8_lossy(&out.stderr)
+            ));
+        }
+        return Ok(());
+    }
+    #[allow(unreachable_code)]
+    Err("unsupported platform".to_string())
+}
+
+/// Persist an in-memory blob (e.g. an image from the clipboard) to a temp file
+/// and return the absolute path. The caller is responsible for invoking
+/// `send_file` with the returned path. The temp file lives until the OS cleans
+/// the temp dir; for clipboard sends that's acceptable.
+#[tauri::command]
+pub fn save_clipboard_blob(name: String, bytes: Vec<u8>) -> Result<String, String> {
+    let safe_name = sanitize_temp_name(&name);
+    let id = uuid::Uuid::new_v4();
+    let path = std::env::temp_dir().join(format!("xhare-clip-{id}-{safe_name}"));
+    let mut file = File::create(&path).map_err(|e| format!("create temp: {e}"))?;
+    file.write_all(&bytes).map_err(|e| format!("write temp: {e}"))?;
+    Ok(path.to_string_lossy().to_string())
+}
+
+fn sanitize_temp_name(name: &str) -> String {
+    let cleaned: String = name
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_' { c } else { '_' })
+        .collect();
+    if cleaned.is_empty() {
+        "clipboard.bin".to_string()
+    } else {
+        cleaned
+    }
 }
 
 /// Reveal a file in the system file manager (Finder on macOS, Explorer on

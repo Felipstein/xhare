@@ -5,12 +5,16 @@ import { openFile, saveFile, showInFolder } from '@/services/files';
 import { subscribeTransfer } from '@/services/transfer';
 import { useFilesStore } from '@/stores/filesStore';
 import { useSettingsStore } from '@/stores/settingsStore';
+import { uniqueName } from '@/utils/uniqueName';
 
 import type {
   CompletePayload,
   ErrorPayload,
   ProgressPayload,
   ReceivedFile,
+  ZipCompletePayload,
+  ZipProgressPayload,
+  ZipStartPayload,
 } from '@/services/transfer';
 import type { SharedFile } from '@/types/SharedFile';
 
@@ -32,9 +36,15 @@ export function useTransferSubscription(): void {
     let unsubscribe: (() => void) | null = null;
 
     const onFileReceived = (received: ReceivedFile): void => {
+      // Browser-style dedupe: if the feed already has a `notes.txt`, the new
+      // arrival becomes `notes (1).txt`. Only the display name changes;
+      // `cachedPath` keeps pointing at the real file on disk.
+      const takenNames = new Set(useFilesStore.getState().files.map((f) => f.name));
+      const displayName = uniqueName(received.name, takenNames);
+
       const file: SharedFile = {
         id: received.id,
-        name: received.name,
+        name: displayName,
         size: received.size,
         kind: inferKind(received.name),
         extension: inferExtension(received.name),
@@ -57,7 +67,7 @@ export function useTransferSubscription(): void {
         actions.unshift({ label: 'Salvar', onClick: () => void saveFile(file, downloadFolder) });
       }
       notify({
-        title: `${received.from} enviou ${received.name}`,
+        title: `${received.from} enviou ${displayName}`,
         actions,
       });
     };
@@ -85,6 +95,34 @@ export function useTransferSubscription(): void {
       useFilesStore.getState().updateFile(e.id, { status: 'error' });
     };
 
+    const onZipStart = (e: ZipStartPayload): void => {
+      // Repaint the row as a ZIP from the start: name, extension and kind are
+      // updated so the icon shows the amber ZIP badge while compression runs.
+      useFilesStore.getState().updateFile(e.id, {
+        status: 'zipping',
+        name: e.name,
+        extension: 'zip',
+        kind: 'file',
+        size: e.total,
+        progress: 0,
+      });
+    };
+
+    const onZipProgress = (e: ZipProgressPayload): void => {
+      const percent = e.total > 0 ? Math.floor((e.bytes / e.total) * 100) : 0;
+      useFilesStore.getState().updateFile(e.id, { status: 'zipping', progress: percent });
+    };
+
+    const onZipComplete = (e: ZipCompletePayload): void => {
+      // Flip to 'sending' now; transfer-progress events will update the bar.
+      useFilesStore.getState().updateFile(e.id, {
+        status: 'sending',
+        name: e.name,
+        size: e.size,
+        progress: 0,
+      });
+    };
+
     void (async () => {
       try {
         unsubscribe = await subscribeTransfer({
@@ -92,6 +130,9 @@ export function useTransferSubscription(): void {
           onProgress,
           onComplete,
           onError,
+          onZipStart,
+          onZipProgress,
+          onZipComplete,
         });
       } catch (err) {
         console.error('subscribeTransfer failed:', err);

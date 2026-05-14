@@ -17,6 +17,15 @@
   }
 }
 
+@keyframes zip-stripes {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 12px 0;
+  }
+}
+
 /*
  * Window dragging is implemented by the TitleBar via `useWindowDrag()` —
  * it calls `getCurrentWindow().startDragging()` on mousedown. We do NOT use

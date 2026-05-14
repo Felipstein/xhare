@@ -1,6 +1,12 @@
 export type FileKind = 'file' | 'folder' | 'image' | 'video';
 
-export type FileStatus = 'sending' | 'receiving' | 'sent' | 'received' | 'error';
+export type FileStatus =
+  | 'zipping'
+  | 'sending'
+  | 'receiving'
+  | 'sent'
+  | 'received'
+  | 'error';
 
 export type SharedFile = {
   id: string;
