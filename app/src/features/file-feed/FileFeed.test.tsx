@@ -5,6 +5,7 @@ import { useConnectionStore } from '@/stores/connectionStore';
 import { useDevicesStore } from '@/stores/devicesStore';
 import { useFilesStore } from '@/stores/filesStore';
 import { renderWithTooltip } from '@/test/renderWithTooltip';
+import { sampleDevices, sampleFile } from '@/test/fixtures';
 
 import { FileFeed } from './FileFeed';
 
@@ -15,19 +16,20 @@ describe('FileFeed', () => {
     useConnectionStore.getState().setStatus('CONNECTED');
   });
 
-  it('renders file rows by default', () => {
+  it('renders file rows when files exist', () => {
+    useDevicesStore.getState().setDevices(sampleDevices);
+    useFilesStore.getState().setFiles([sampleFile({ name: 'design-mockup.jpg' })]);
     renderWithTooltip(<FileFeed />);
     expect(screen.getByText('design-mockup.jpg')).toBeInTheDocument();
   });
 
   it('shows empty state when there are no files', () => {
-    useFilesStore.getState().setFiles([]);
+    useDevicesStore.getState().setDevices(sampleDevices);
     renderWithTooltip(<FileFeed />);
     expect(screen.getByText(/Nenhum arquivo compartilhado/)).toBeInTheDocument();
   });
 
   it('shows no-devices placeholder when device list is empty', () => {
-    useDevicesStore.getState().setDevices([]);
     renderWithTooltip(<FileFeed />);
     expect(screen.getByText(/Aguardando dispositivos/)).toBeInTheDocument();
   });

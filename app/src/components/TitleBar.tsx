@@ -4,6 +4,7 @@ import { cn } from '@/utils/cn';
 import { usePlatform } from '@/hooks/usePlatform';
 import { useWindowDrag } from '@/hooks/useWindowDrag';
 
+import { LocalIpChip } from './LocalIpChip';
 import { SettingsDialog } from './SettingsDialog';
 
 type Props = {
@@ -44,6 +45,8 @@ export function TitleBar({ hint }: Props) {
           </span>
         )}
       </div>
+
+      <LocalIpChip />
 
       <SettingsDialog>
         <button

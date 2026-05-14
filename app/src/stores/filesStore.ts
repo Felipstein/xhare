@@ -1,7 +1,5 @@
 import { create } from 'zustand';
 
-import { mockFiles } from '@/mock/files';
-
 import type { SharedFile } from '@/types/SharedFile';
 
 type FilesState = {
@@ -21,7 +19,7 @@ type FilesActions = {
 };
 
 const initialState: FilesState = {
-  files: mockFiles,
+  files: [],
   selectedId: null,
 };
 

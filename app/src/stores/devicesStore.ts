@@ -1,7 +1,5 @@
 import { create } from 'zustand';
 
-import { mockDevices } from '@/mock/devices';
-
 import type { Device } from '@/types/Device';
 
 type DevicesState = {
@@ -17,7 +15,7 @@ type DevicesActions = {
 };
 
 const initialState: DevicesState = {
-  devices: mockDevices,
+  devices: [],
 };
 
 export const useDevicesStore = create<DevicesState & DevicesActions>((set) => ({

@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 
 import { useConnectionStore } from '@/stores/connectionStore';
 import { useDevicesStore } from '@/stores/devicesStore';
+import { sampleDevices } from '@/test/fixtures';
 
 import { DeviceList } from './DeviceList';
 
@@ -13,6 +14,7 @@ describe('DeviceList', () => {
   });
 
   it('renders all devices when connected', () => {
+    useDevicesStore.getState().setDevices(sampleDevices);
     render(<DeviceList />);
     expect(screen.getByText('macbook-pro')).toBeInTheDocument();
     expect(screen.getByText('ipad-air')).toBeInTheDocument();
@@ -21,7 +23,6 @@ describe('DeviceList', () => {
   });
 
   it('shows empty state when no devices and connected', () => {
-    useDevicesStore.getState().setDevices([]);
     render(<DeviceList />);
     expect(screen.getByText(/Nenhum dispositivo/)).toBeInTheDocument();
   });
