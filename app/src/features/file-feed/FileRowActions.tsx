@@ -1,4 +1,5 @@
 import {
+  CheckIcon,
   CopyIcon,
   DownloadIcon,
   ExternalLinkIcon,
@@ -29,6 +30,7 @@ function IconButton({ label, children, tone = 'default', className, ...props }: 
       className={cn(
         'inline-flex items-center justify-center size-7 rounded-md transition-colors',
         '[&_svg]:size-4',
+        'disabled:cursor-default disabled:hover:bg-transparent',
         {
           'text-zinc-400 hover:text-white hover:bg-zinc-700': tone === 'default',
           'text-red-400 hover:text-red-300 hover:bg-red-500/10': tone === 'danger',
@@ -61,12 +63,19 @@ export function ReceivedActions({
 }: ReceivedActionsProps) {
   const platform = usePlatform();
   const revealLabel = platform === 'windows' ? 'Mostrar no Explorer' : 'Mostrar no Finder';
+  const isSaved = Boolean(file.savedPath);
 
   return (
     <div className="flex items-center gap-0.5">
-      <IconButton label="Salvar" onClick={onSave}>
-        <DownloadIcon />
-      </IconButton>
+      {isSaved ? (
+        <IconButton label="Já salvo" disabled className="!text-green-400">
+          <CheckIcon />
+        </IconButton>
+      ) : (
+        <IconButton label="Salvar" onClick={onSave}>
+          <DownloadIcon />
+        </IconButton>
+      )}
       <IconButton label="Abrir" onClick={onOpen}>
         <ExternalLinkIcon />
       </IconButton>

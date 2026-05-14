@@ -1,7 +1,9 @@
-import { ArrowUpIcon } from 'lucide-react';
+import { ArrowUpIcon, CheckIcon } from 'lucide-react';
 
+import { Tooltip } from '@/components/Tooltip';
 import { cn } from '@/utils/cn';
 import { formatSize, formatSpeed } from '@/utils/formatSize';
+import { humanFileType } from '@/utils/fileType';
 import { timeAgo } from '@/utils/timeAgo';
 import { useDevicesStore } from '@/stores/devicesStore';
 
@@ -54,9 +56,24 @@ function FromCell({ file }: { file: SharedFile }) {
   );
 }
 
+function FileSubtitle({ file }: { file: SharedFile }) {
+  if (file.kind === 'folder') {
+    return (
+      <span className="text-[11px] text-zinc-500 truncate">
+        23 arquivos · {formatSize(file.size)}
+      </span>
+    );
+  }
+  return (
+    <span className="text-[11px] text-zinc-500 truncate">{humanFileType(file)}</span>
+  );
+}
+
 export function FileRow(props: Props) {
   const { file, onActivate } = props;
-  const isUnread = !file.isRead && (file.status === 'received' || file.status === 'error');
+  const isSaved = Boolean(file.savedPath);
+  const isUnread =
+    !file.isRead && !isSaved && (file.status === 'received' || file.status === 'error');
   const isTransferring = file.status === 'sending' || file.status === 'receiving';
   const showProgress = isTransferring && typeof file.progress === 'number';
   const hasHoverActions =
@@ -67,6 +84,7 @@ export function FileRow(props: Props) {
       role="listitem"
       data-status={file.status}
       data-unread={isUnread || undefined}
+      data-saved={isSaved || undefined}
       onDoubleClick={() => onActivate?.(file)}
       className={cn(
         'group/row relative border-b border-zinc-800/80 cursor-default transition-colors overflow-hidden',
@@ -74,7 +92,8 @@ export function FileRow(props: Props) {
           'bg-zinc-800/50': isUnread,
           'hover:bg-zinc-800/30': !isUnread,
           'hover:bg-zinc-800/60': isUnread,
-          'opacity-70': file.status === 'sent' && file.isRead,
+          'opacity-50 hover:opacity-90': isSaved,
+          'opacity-70': file.status === 'sent' && file.isRead && !isSaved,
         },
       )}
     >
@@ -89,20 +108,30 @@ export function FileRow(props: Props) {
         <FileIcon file={file} />
 
         <div className="min-w-0 flex flex-col gap-0.5">
-          <span
-            className={cn(
-              'truncate text-sm font-medium tracking-tight',
-              isUnread ? 'text-white' : 'text-zinc-200',
-            )}
-            title={file.name}
-          >
-            {file.name}
-          </span>
-          {file.kind === 'folder' && (
-            <span className="text-[11px] text-zinc-500 truncate">
-              23 arquivos · {formatSize(file.size)}
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span
+              className={cn(
+                'truncate text-sm font-medium tracking-tight',
+                isUnread ? 'text-white' : 'text-zinc-200',
+              )}
+              title={file.name}
+            >
+              {file.name}
             </span>
-          )}
+            {isSaved && (
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <span className="inline-flex shrink-0 size-3.5 rounded-full bg-green-500/15 items-center justify-center">
+                    <CheckIcon className="size-2.5 text-green-400" />
+                  </span>
+                </Tooltip.Trigger>
+                <Tooltip.Content side="top">
+                  Já salvo em {file.savedPath}
+                </Tooltip.Content>
+              </Tooltip.Root>
+            )}
+          </div>
+          <FileSubtitle file={file} />
         </div>
 
         <span className="text-xs text-zinc-400 whitespace-nowrap tabular-nums text-right">
@@ -140,11 +169,6 @@ export function FileRow(props: Props) {
   );
 }
 
-/**
- * The hover overlay covers the right side of the row with a gradient that
- * fades the underlying columns out. The actions then sit on top of the
- * solid (right) end of the gradient so nothing peeks through.
- */
 function HoverOverlay(props: Props) {
   return (
     <div

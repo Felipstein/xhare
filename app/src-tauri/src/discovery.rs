@@ -156,8 +156,34 @@ fn sanitize_instance(fullname: &str) -> String {
     fullname.split('.').next().unwrap_or("").to_string()
 }
 
+/// Pick the most likely-routable peer IP.
+///
+/// On Windows especially, a single peer often advertises 3+ addresses via
+/// mDNS (Wi-Fi + Hyper-V virtual switch + WSL bridge). All look "private"
+/// but only one is actually reachable from us. Strategy, in order:
+///   1. Peer IP in the same /24 as our own primary IP — almost always the right one
+///   2. Any private IPv4 (RFC 1918)
+///   3. Any IPv4
+///   4. Anything left
 fn pick_best_address(info: &ServiceInfo) -> Option<IpAddr> {
     let addrs: Vec<IpAddr> = info.get_addresses().iter().copied().collect();
+    let own_octets = match local_ip_address::local_ip().ok() {
+        Some(IpAddr::V4(v4)) => Some(v4.octets()),
+        _ => None,
+    };
+
+    if let Some(o) = own_octets {
+        if let Some(ip) = addrs
+            .iter()
+            .find(|ip| matches!(ip, IpAddr::V4(v4) if {
+                let p = v4.octets();
+                p[0] == o[0] && p[1] == o[1] && p[2] == o[2]
+            }))
+            .copied()
+        {
+            return Some(ip);
+        }
+    }
     if let Some(ip) = addrs
         .iter()
         .find(|ip| matches!(ip, IpAddr::V4(v4) if is_private_v4(v4)))

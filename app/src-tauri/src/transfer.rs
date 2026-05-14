@@ -292,9 +292,11 @@ fn send_to_peer<R: Runtime>(
     peer_address: &str,
 ) -> Result<(), String> {
     let socket = format!("{peer_address}:{TRANSFER_PORT}");
+    log::info!("transfer: connecting to {socket} for file {}", header.name);
     let stream =
         TcpStream::connect_timeout(&socket.parse().map_err(|e| format!("addr: {e}"))?, Duration::from_secs(5))
             .map_err(|e| format!("connect {socket}: {e}"))?;
+    log::info!("transfer: connected to {socket}");
     stream.set_write_timeout(Some(Duration::from_secs(30))).ok();
     let mut writer = BufWriter::new(stream);
 
