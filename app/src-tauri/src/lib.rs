@@ -45,11 +45,11 @@ pub fn run() {
             use tauri::Manager;
             if let Some(window) = app.get_webview_window("main") {
                 // Closing the window hides it instead of exiting the process —
-                // the app keeps living in the tray. Real exit comes from the
-                // tray menu's "Sair" item, which calls AppHandle::exit(). On
-                // macOS we also flip the activation policy so the dock icon
-                // disappears while we're tray-only (Docker / Rectangle style).
+                // the app keeps living in the tray. On macOS we also flip the
+                // activation policy so the dock icon disappears while we're
+                // tray-only (Docker / Rectangle style).
                 let w = window.clone();
+                #[cfg(target_os = "macos")]
                 let handle = app.handle().clone();
                 window.on_window_event(move |event| {
                     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
@@ -59,9 +59,6 @@ pub fn run() {
                         {
                             let _ = handle.set_activation_policy(tauri::ActivationPolicy::Accessory);
                         }
-                        // Reference the handle on non-macOS too so the closure
-                        // captures it on every platform (silences unused warns).
-                        let _ = &handle;
                     }
                 });
 

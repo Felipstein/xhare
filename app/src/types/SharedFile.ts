@@ -16,8 +16,6 @@ export type SharedFile = {
   status: FileStatus;
   progress?: number;
   speedBps?: number;
-  deliveredTo?: string[];
-  failedTo?: string[];
   isRead: boolean;
   isPinned: boolean;
   /** Location in the OS cache dir; set on received files until discarded. */

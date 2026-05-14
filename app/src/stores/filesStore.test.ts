@@ -26,12 +26,12 @@ describe('filesStore', () => {
     expect(useFilesStore.getState().files[0].isRead).toBe(true);
   });
 
-  it('removeFile removes by id and clears selectedId when needed', () => {
+  it('removeFile removes by id and drops it from selectedIds', () => {
     useFilesStore.getState().addFile(sampleFile({ id: 'a' }));
-    useFilesStore.getState().select('a');
+    useFilesStore.getState().toggleSelect('a');
     useFilesStore.getState().removeFile('a');
     expect(useFilesStore.getState().files).toHaveLength(0);
-    expect(useFilesStore.getState().selectedId).toBeNull();
+    expect(useFilesStore.getState().selectedIds).toEqual([]);
   });
 
   it('markRead flips a single file', () => {

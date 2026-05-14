@@ -60,8 +60,6 @@ export async function sendFromPath(sourcePath: string): Promise<SentFile | null>
     sentAt: new Date(),
     status: 'sending',
     progress: 0,
-    deliveredTo: [],
-    failedTo: [],
     isRead: true,
     isPinned: false,
     sourcePath,
@@ -95,8 +93,6 @@ export async function resendFile(file: SharedFile): Promise<void> {
     progress: 0,
     sentAt: new Date(),
     isRead: true,
-    deliveredTo: [],
-    failedTo: [],
   });
   try {
     await sendFileRust(newId, source, peers);
@@ -228,9 +224,4 @@ export async function copyManyFiles(files: SharedFile[]): Promise<number> {
     notifyError('Não foi possível copiar');
     return 0;
   }
-}
-
-export async function cancelTransfer(id: string): Promise<void> {
-  // V3.1 — wire to Rust cancellation flag
-  useFilesStore.getState().updateFile(id, { status: 'error' });
 }

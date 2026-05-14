@@ -1,11 +1,9 @@
 import { useCallback, useState } from 'react';
 
 /**
- * Drag-drop hook for V1 mocks.
- *
- * In V3 this hook will be replaced by Tauri's native window.onDragDropEvent listener,
- * which is the only reliable way to receive OS file drops in a Tauri webview.
- * The component API stays the same: { isDragging, onDragEnter, onDragLeave, onDrop }.
+ * UI-level drag state. `useNativeDragDrop` is the actual file-drop event
+ * source (Tauri's `onDragDropEvent`); this hook just tracks "is the user
+ * currently hovering with a drag?" so the overlay can show/hide.
  */
 export function useDragDrop() {
   const [isDragging, setIsDragging] = useState(false);

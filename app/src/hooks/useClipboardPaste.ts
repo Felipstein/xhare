@@ -87,10 +87,8 @@ export function useClipboardPaste(): void {
         }
       }
 
-      // We don't yet know how many items there are — that depends on the Rust
-      // call. Cancel the browser's default *only* if there's at least one
-      // candidate source; otherwise let the normal paste behaviour through
-      // (e.g. for pasting text into a future search input we don't have yet).
+      // Only preventDefault when this looks like a file paste, so plain text
+      // paste keeps working in inputs that bubble up to the document.
       const hasInlineSource = uriListRaw.length > 0 || inlineBlobs.length > 0;
 
       void (async () => {
@@ -135,8 +133,6 @@ export function useClipboardPaste(): void {
         }
       })();
 
-      // Prevent default only if it looks like a file paste — we don't want to
-      // swallow text paste destined for inputs we may add later.
       if (hasInlineSource) {
         event.preventDefault();
       }

@@ -137,8 +137,6 @@ describe('FileRow', () => {
           status: 'sent',
           from: 'você',
           isRead: true,
-          deliveredTo: ['macbook-pro', 'ipad-air'],
-          failedTo: ['imac-studio'],
         }}
         {...noopHandlers}
       />,
