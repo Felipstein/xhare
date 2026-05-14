@@ -1,6 +1,7 @@
 mod discovery;
 mod lan_scan;
 mod settings;
+mod transfer;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -16,14 +17,16 @@ pub fn run() {
             discovery::get_default_download_folder,
             settings::load_settings,
             settings::save_settings,
+            transfer::send_file,
+            transfer::save_cached_file,
+            transfer::discard_cached_file,
+            transfer::open_cached_file,
+            transfer::show_cached_file,
         ])
         .setup(|app| {
             discovery::setup(app);
+            transfer::setup(app);
 
-            // On Windows we render our own header (no native chrome).
-            // On macOS we keep `decorations: true` + `titleBarStyle: Overlay`
-            // (set in tauri.conf.json) so the OS draws rounded corners and
-            // functional traffic lights.
             #[cfg(target_os = "windows")]
             {
                 use tauri::Manager;

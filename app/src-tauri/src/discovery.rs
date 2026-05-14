@@ -208,6 +208,10 @@ fn register_self(state: &Arc<State>) -> Result<(), String> {
     Ok(())
 }
 
+pub fn own_device_name() -> String {
+    sanitize_hostname(&local_hostname())
+}
+
 fn own_device() -> Device {
     let name = sanitize_hostname(&local_hostname());
     let address = local_ip_string();

@@ -5388,6 +5388,8 @@ dependencies = [
 name = "xhare"
 version = "0.1.0"
 dependencies = [
+ "byteorder",
+ "crc32fast",
  "dirs 5.0.1",
  "dns-lookup",
  "hostname",
@@ -5402,6 +5404,7 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-opener",
  "tokio",
+ "uuid",
 ]
 
 [[package]]

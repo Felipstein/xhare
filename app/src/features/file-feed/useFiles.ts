@@ -1,6 +1,6 @@
 import { useFilesStore } from '@/stores/filesStore';
+import { useSettingsStore } from '@/stores/settingsStore';
 import {
-  cancelTransfer,
   copyFile,
   discardFile,
   openFile,
@@ -13,43 +13,36 @@ import type { SharedFile } from '@/types/SharedFile';
 
 export function useFiles() {
   const files = useFilesStore((s) => s.files);
-  const markRead = useFilesStore((s) => s.markRead);
   const removeFile = useFilesStore((s) => s.removeFile);
 
   const onSave = (file: SharedFile): void => {
-    void saveFile(file.id);
-    markRead(file.id);
+    const dest = useSettingsStore.getState().downloadFolder;
+    if (!dest) return;
+    void saveFile(file, dest);
   };
   const onOpen = (file: SharedFile): void => {
-    void openFile(file.id);
-    markRead(file.id);
+    void openFile(file);
   };
   const onCopy = (file: SharedFile): void => {
-    void copyFile(file.id);
-    markRead(file.id);
+    void copyFile(file);
   };
   const onShowInFolder = (file: SharedFile): void => {
-    void showInFolder(file.id);
-    markRead(file.id);
+    void showInFolder(file);
   };
   const onDiscard = (file: SharedFile): void => {
     void discardFile(file.id);
   };
   const onResend = (file: SharedFile): void => {
-    void resendFile(file.id);
+    void resendFile(file);
   };
   const onRemove = (file: SharedFile): void => {
     removeFile(file.id);
   };
   const onRetry = (file: SharedFile): void => {
-    void resendFile(file.id);
-  };
-  const onCancel = (file: SharedFile): void => {
-    void cancelTransfer(file.id);
+    void resendFile(file);
   };
   const onActivate = (file: SharedFile): void => {
-    void openFile(file.id);
-    markRead(file.id);
+    void openFile(file);
   };
 
   return {
@@ -63,7 +56,6 @@ export function useFiles() {
       onResend,
       onRemove,
       onRetry,
-      onCancel,
       onActivate,
     },
   };

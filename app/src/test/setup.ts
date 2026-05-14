@@ -45,6 +45,22 @@ vi.mock('@tauri-apps/api/core', () => ({
     if (cmd === 'save_settings') {
       return null;
     }
+    if (cmd === 'send_file') {
+      return {
+        id: 'mock-send-id',
+        name: 'mock.txt',
+        size: 0,
+        from: 'mock',
+      };
+    }
+    if (
+      cmd === 'save_cached_file' ||
+      cmd === 'discard_cached_file' ||
+      cmd === 'open_cached_file' ||
+      cmd === 'show_cached_file'
+    ) {
+      return null;
+    }
     return null;
   }),
 }));
