@@ -740,6 +740,7 @@ pub fn open_path(path: String) -> Result<(), String> {
 /// clipboard contains no files (e.g. it has text or image data instead). Uses
 /// `osascript` on macOS and PowerShell on Windows so we don't pull in
 /// platform-specific clipboard crates.
+#[allow(clippy::needless_return)] // see reveal_path: cfg-branched bodies
 #[tauri::command]
 pub fn read_clipboard_paths() -> Vec<String> {
     #[cfg(target_os = "macos")]
@@ -843,6 +844,7 @@ pub fn show_notification<R: Runtime>(
 /// pasting in chat apps (WhatsApp, iMessage, Telegram, …) attaches them as
 /// images/videos when applicable. Uses AppleScriptObjC (`NSPasteboard`) on
 /// macOS and `System.Windows.Forms.Clipboard.SetFileDropList` on Windows.
+#[allow(clippy::needless_return)] // see reveal_path: cfg-branched bodies
 #[tauri::command]
 pub fn copy_paths_to_clipboard(paths: Vec<String>) -> Result<(), String> {
     if paths.is_empty() {
@@ -949,6 +951,12 @@ fn sanitize_temp_name(name: &str) -> String {
 /// Windows). On macOS we use `open -R` so the file is highlighted; on Windows
 /// `explorer /select,<path>` does the same. Falls back to opening the parent
 /// directory if those flags aren't available.
+//
+// `needless_return`: the explicit `return` is required because each cfg block
+// is the only branch the compiler sees on a given platform, but clippy looks
+// at them in isolation and flags them as needless. Removing them would make
+// non-macOS / non-Windows targets fail to compile.
+#[allow(clippy::needless_return)]
 #[tauri::command]
 pub fn reveal_path(path: String) -> Result<(), String> {
     let p = std::path::Path::new(&path);

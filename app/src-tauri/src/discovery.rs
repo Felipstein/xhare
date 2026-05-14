@@ -388,7 +388,7 @@ fn spawn_lan_refresher<R: Runtime>(app: AppHandle<R>, state: Arc<State>) {
 /// only ever pay the lookup cost once per IP per app session. Lookups run in
 /// parallel with a short per-IP timeout — total wall time stays under ~2s
 /// even for a fully unknown /24.
-fn enrich_with_hostnames(state: &Arc<State>, entries: &mut Vec<lan_scan::LanEntry>) {
+fn enrich_with_hostnames(state: &Arc<State>, entries: &mut [lan_scan::LanEntry]) {
     let to_resolve: Vec<std::net::Ipv4Addr> = {
         let cache = state.hostname_cache.lock().unwrap();
         entries
