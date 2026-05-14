@@ -790,8 +790,11 @@ end try
         // FileDropList yields plain string paths, not FileInfo, so `$_` is
         // what we want — `$_.FullName` was dropping every line.
         let script = "Get-Clipboard -Format FileDropList | ForEach-Object { $_ }";
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         let out = std::process::Command::new("powershell")
             .args(["-NoProfile", "-NonInteractive", "-Command", script])
+            .creation_flags(CREATE_NO_WINDOW)
             .output();
         if let Ok(o) = out {
             let s = String::from_utf8_lossy(&o.stdout);
@@ -899,6 +902,8 @@ pub fn copy_paths_to_clipboard(paths: Vec<String>) -> Result<(), String> {
              [System.Windows.Forms.Clipboard]::SetFileDropList($col)\n"
         );
         // -STA is required: clipboard APIs need a single-threaded apartment.
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         let out = std::process::Command::new("powershell")
             .args([
                 "-NoProfile",
@@ -907,6 +912,7 @@ pub fn copy_paths_to_clipboard(paths: Vec<String>) -> Result<(), String> {
                 "-Command",
                 &script,
             ])
+            .creation_flags(CREATE_NO_WINDOW)
             .output()
             .map_err(|e| format!("powershell: {e}"))?;
         if !out.status.success() {

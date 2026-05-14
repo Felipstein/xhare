@@ -15,7 +15,18 @@ pub struct LanEntry {
 }
 
 pub fn scan() -> Vec<LanEntry> {
-    let Ok(output) = Command::new("arp").arg("-a").output() else {
+    let mut cmd = Command::new("arp");
+    cmd.arg("-a");
+    // Suppress the flashing console window on Windows. `arp -a` is a console
+    // app; without this flag, Windows opens a black cmd window for each call
+    // and we run this every 8 seconds.
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    let Ok(output) = cmd.output() else {
         return Vec::new();
     };
     if !output.status.success() {
