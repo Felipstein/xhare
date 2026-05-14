@@ -101,6 +101,17 @@ export default [
     },
   },
   {
+    // Node-only scripts (release tooling, etc.). They live outside `src/`
+    // and don't need the TS type-aware rules; they just need Node globals
+    // (`process`, `console`, …) to be defined.
+    files: ['scripts/**/*.{mjs,js}'],
+    languageOptions: {
+      globals: { ...globals.node },
+      sourceType: 'module',
+      ecmaVersion: 'latest',
+    },
+  },
+  {
     ignores: ['dist/**', 'node_modules/**', '*.config.js'],
   },
 ]
