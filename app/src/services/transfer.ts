@@ -41,8 +41,12 @@ export type ErrorPayload = {
 
 export type Unsubscribe = () => void;
 
-export function sendFile(sourcePath: string, peers: string[]): Promise<SentFile> {
-  return invoke<SentFile>('send_file', { sourcePath, peers });
+export function sendFile(
+  fileId: string,
+  sourcePath: string,
+  peers: string[],
+): Promise<SentFile> {
+  return invoke<SentFile>('send_file', { fileId, sourcePath, peers });
 }
 
 export function saveCachedFile(

@@ -240,6 +240,7 @@ fn handle_incoming<R: Runtime>(
 #[tauri::command]
 pub fn send_file<R: Runtime>(
     app: AppHandle<R>,
+    file_id: String,
     source_path: String,
     peers: Vec<String>,
 ) -> Result<SentFile, String> {
@@ -254,7 +255,6 @@ pub fn send_file<R: Runtime>(
         .and_then(|s| s.to_str())
         .unwrap_or("file")
         .to_string();
-    let file_id = uuid::Uuid::new_v4().to_string();
     let from = discovery::own_device_name();
     let header = FileHeader {
         file_id: file_id.clone(),

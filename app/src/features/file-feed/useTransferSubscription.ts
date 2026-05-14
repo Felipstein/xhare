@@ -1,7 +1,10 @@
 import { useEffect } from 'react';
 
+import { notify } from '@/components/Toast';
+import { openFile, saveFile, showInFolder } from '@/services/files';
 import { subscribeTransfer } from '@/services/transfer';
 import { useFilesStore } from '@/stores/filesStore';
+import { useSettingsStore } from '@/stores/settingsStore';
 
 import type {
   CompletePayload,
@@ -44,6 +47,19 @@ export function useTransferSubscription(): void {
         cachedPath: received.cachedPath,
       };
       useFilesStore.getState().addFile(file);
+
+      const downloadFolder = useSettingsStore.getState().downloadFolder;
+      const actions = [
+        { label: 'Abrir', onClick: () => void openFile(file) },
+        { label: 'Mostrar', onClick: () => void showInFolder(file) },
+      ];
+      if (downloadFolder) {
+        actions.unshift({ label: 'Salvar', onClick: () => void saveFile(file, downloadFolder) });
+      }
+      notify({
+        title: `${received.from} enviou ${received.name}`,
+        actions,
+      });
     };
 
     const onProgress = (p: ProgressPayload): void => {

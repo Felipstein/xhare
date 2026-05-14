@@ -43,14 +43,18 @@ export async function sendFromPath(sourcePath: string): Promise<SentFile | null>
     notifyError('Nenhum dispositivo conectado para receber');
     return null;
   }
-
-  const sent = await sendFileRust(sourcePath, peers);
+  // Generate id on the frontend so we can register the file in the store
+  // BEFORE Rust spawns its send thread. Otherwise the thread can emit
+  // transfer-progress / transfer-complete before addFile runs, leaving the
+  // row stuck at 0%.
+  const fileId = crypto.randomUUID();
+  const name = sourcePath.split(/[\\/]/).pop() ?? sourcePath;
   const file: SharedFile = {
-    id: sent.id,
-    name: sent.name,
-    size: sent.size,
-    kind: inferKind(sent.name),
-    extension: sent.name.includes('.') ? sent.name.split('.').pop() : undefined,
+    id: fileId,
+    name,
+    size: 0,
+    kind: inferKind(name),
+    extension: name.includes('.') ? name.split('.').pop() : undefined,
     from: 'você',
     sentAt: new Date(),
     status: 'sending',
@@ -62,7 +66,15 @@ export async function sendFromPath(sourcePath: string): Promise<SentFile | null>
     sourcePath,
   };
   useFilesStore.getState().addFile(file);
-  return sent;
+  try {
+    const sent = await sendFileRust(fileId, sourcePath, peers);
+    // Rust knows the real size after stat — update so the UI shows it.
+    useFilesStore.getState().updateFile(fileId, { size: sent.size, name: sent.name });
+    return sent;
+  } catch (err) {
+    useFilesStore.getState().updateFile(fileId, { status: 'error' });
+    throw err;
+  }
 }
 
 export async function resendFile(file: SharedFile): Promise<void> {
@@ -73,12 +85,11 @@ export async function resendFile(file: SharedFile): Promise<void> {
     notifyError('Nenhum dispositivo conectado para reenviar');
     return;
   }
-  // Rust assigns a fresh UUID per send. Swap the row's id to the new one so
-  // future transfer-progress / transfer-complete events match this row.
-  const sent = await sendFileRust(source, peers);
+  // Fresh id on the frontend, registered before Rust starts emitting events.
+  const newId = crypto.randomUUID();
   useFilesStore.getState().replaceFile(file.id, {
     ...file,
-    id: sent.id,
+    id: newId,
     status: 'sending',
     progress: 0,
     sentAt: new Date(),
@@ -86,6 +97,12 @@ export async function resendFile(file: SharedFile): Promise<void> {
     deliveredTo: [],
     failedTo: [],
   });
+  try {
+    await sendFileRust(newId, source, peers);
+  } catch (err) {
+    useFilesStore.getState().updateFile(newId, { status: 'error' });
+    throw err;
+  }
 }
 
 export async function discardFile(file: SharedFile): Promise<void> {
