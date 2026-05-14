@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(pnpm config *)",
+      "PowerShell(pnpm *)"
+    ]
+  }
+}
