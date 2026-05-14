@@ -1,0 +1,19 @@
+@import "tailwindcss";
+@plugin "tailwindcss-animate";
+
+@layer base {
+  * {
+    @apply border-zinc-700
+  }
+
+  button {
+    @apply cursor-pointer
+  }
+}
+
+/*
+ * Window dragging is implemented by the TitleBar via `useWindowDrag()` —
+ * it calls `getCurrentWindow().startDragging()` on mousedown. We do NOT use
+ * `-webkit-app-region: drag` here because Tauri 2's built-in handler conflicts
+ * with the OS native drag on macOS when the window is already focused.
+ */
