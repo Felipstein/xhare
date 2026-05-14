@@ -1,0 +1,91 @@
+name: Release
+
+# Triggered by pushing a tag like `v0.1.0`. Builds the Tauri app on macOS and
+# Windows in parallel, then publishes a GitHub Release with the artifacts.
+#
+# To cut a release locally:
+#   1. Bump `version` in app/src-tauri/tauri.conf.json AND
+#      app/src-tauri/Cargo.toml AND app/package.json (kept in sync).
+#   2. git commit -am "release: v0.1.0"
+#   3. git tag v0.1.0 && git push && git push --tags
+#
+# Workflow_dispatch is also wired up so you can rebuild on demand (e.g. to
+# regenerate artifacts after a CI fix) without recutting a tag.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: --target universal-apple-darwin
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+          - platform: windows-latest
+            args: ''
+            rust-targets: ''
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-targets }}
+
+      - name: Cache cargo registry + build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri -> target
+
+      - name: Install frontend deps
+        working-directory: app
+        run: pnpm install --frozen-lockfile
+
+      # Tauri action: builds the bundles for the current platform and uploads
+      # them to a GitHub Release named after the tag. `releaseDraft: false`
+      # publishes immediately; flip to `true` if you want to review before
+      # making the release public.
+      - name: Build + publish
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: app
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Xhare ${{ github.ref_name }}'
+          releaseBody: |
+            Xhare release ${{ github.ref_name }}.
+
+            ### Downloads
+            - **macOS**: `.dmg` (universal — Intel + Apple Silicon)
+            - **Windows**: `.msi` (installer)
+
+            ⚠️ This build is **unsigned**. On macOS, right-click the app → Open
+            the first time to bypass Gatekeeper. On Windows, click "More info"
+            → "Run anyway" on the SmartScreen warning.
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}
