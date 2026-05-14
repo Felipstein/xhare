@@ -174,26 +174,39 @@ or short read aborts the transfer with a structured error event.
 
 ## 📦 Releasing
 
-Releases are cut by tagging:
+Use the helper script — it bumps every manifest, commits, tags, and pushes in
+one shot:
 
 ```bash
-# Update version in three places, kept manually in sync:
-#   app/package.json
-#   app/src-tauri/Cargo.toml
-#   app/src-tauri/tauri.conf.json
-
-git commit -am "release: v0.2.0"
-git tag v0.2.0
-git push && git push --tags
+cd app
+pnpm release:patch    # 0.1.0 → 0.1.1   bug fixes
+pnpm release:minor    # 0.1.5 → 0.2.0   new feature, backward compatible
+pnpm release:major    # 0.4.2 → 1.0.0   breaking change
 ```
 
-The push triggers
+The script ([`app/scripts/release.mjs`](app/scripts/release.mjs)):
+
+1. Refuses to run if you're not on `main`, the working tree is dirty, or
+   `main` is out of sync with `origin`.
+2. Bumps the version in `package.json`, `tauri.conf.json`, and `Cargo.toml`
+   (plus refreshes `Cargo.lock`).
+3. Commits with `release: vX.Y.Z` and creates an annotated tag.
+4. Pushes both the commit and the tag.
+
+The tag push triggers
 [`.github/workflows/release.yml`](.github/workflows/release.yml), which builds
 the macOS universal `.dmg` and Windows `.msi` in parallel and publishes a
-GitHub Release with both binaries attached.
+GitHub Release with both binaries attached (~15-25 min end-to-end).
 
-You can also dispatch the workflow manually from the Actions tab to rebuild
-without cutting a new tag.
+> **First release:** since `package.json` already starts at `0.1.0`, cut the
+> very first tag manually instead of bumping:
+> ```bash
+> git tag v0.1.0 && git push --tags
+> ```
+> Every release after that goes through `pnpm release:*`.
+
+You can also dispatch the workflow manually from the Actions tab (no new tag
+needed) to rebuild after fixing a CI issue.
 
 ---
 
