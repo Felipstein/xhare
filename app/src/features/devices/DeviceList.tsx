@@ -1,10 +1,10 @@
-import { useState } from 'react';
 import { ChevronDownIcon, PlusIcon, RefreshCcwIcon, WifiIcon } from 'lucide-react';
+import { useState } from 'react';
 
 import { Collapsible } from '@/components/Collapsible';
 import { Loader } from '@/components/Loader';
-import { NoWiFiLogo } from '@/components/NoWiFiLogo';
 import { NewDeviceDialog } from '@/components/NewDeviceDialog';
+import { NoWiFiLogo } from '@/components/NoWiFiLogo';
 import { reconnect } from '@/services/connection';
 import { useConnectionStore } from '@/stores/connectionStore';
 import { useDevicesStore } from '@/stores/devicesStore';
@@ -13,8 +13,9 @@ import { cn } from '@/utils/cn';
 import { DeviceItem } from './DeviceItem';
 
 import type { Device } from '@/types/Device';
+import type { ReactNode } from 'react';
 
-function SidebarHeader({ children }: { children: React.ReactNode }) {
+function SidebarHeader({ children }: { children: ReactNode }) {
   return (
     <span className="px-3 pt-3 pb-2 text-[10px] font-semibold tracking-wider text-zinc-500 uppercase">
       {children}
@@ -92,10 +93,7 @@ export function DeviceList() {
                     className="group w-full flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-semibold tracking-wider text-zinc-500 uppercase hover:text-zinc-300 transition-colors"
                   >
                     <ChevronDownIcon
-                      className={cn(
-                        'size-3 transition-transform',
-                        !offlinesOpen && '-rotate-90',
-                      )}
+                      className={cn('size-3 transition-transform', !offlinesOpen && '-rotate-90')}
                     />
                     <span>Offlines ({offline.length})</span>
                     <span className="flex-1 border-t border-zinc-800 ml-2" />

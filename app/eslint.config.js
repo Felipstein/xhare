@@ -13,13 +13,20 @@ export default [
     files: ['**/*.{ts,tsx}'],
     languageOptions: {
       globals: {
+        ...globals.node,
         ...globals.browser,
       },
       parser: tsParser,
       parserOptions: {
-        project: ['./tsconfig.json'],
+        project: ['./tsconfig.json', './tsconfig.node.json'],
         tsconfigRootDir: import.meta.dirname,
         ecmaFeatures: { jsx: true },
+        // Both tsconfigs are listed explicitly so vite.config.ts gets a parser
+        // context. The "Multiple projects found" hint typescript-eslint prints
+        // is purely informational — `references` does help speed but it can't
+        // replace the listing here because vite.config.ts must be a direct
+        // project for the parser.
+        noWarnOnMultipleProjects: true,
       },
     },
     plugins: {
@@ -29,7 +36,7 @@ export default [
     },
     settings: {
       'import/resolver': {
-        typescript: { project: ['./tsconfig.json'] },
+        typescript: { project: ['./tsconfig.json', './tsconfig.node.json'] },
       },
     },
     rules: {

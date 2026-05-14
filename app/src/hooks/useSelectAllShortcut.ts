@@ -5,11 +5,7 @@ import { useFilesStore } from '@/stores/filesStore';
 import type { SharedFile } from '@/types/SharedFile';
 
 function selectable(file: SharedFile): boolean {
-  return (
-    file.status !== 'sending' &&
-    file.status !== 'receiving' &&
-    file.status !== 'zipping'
-  );
+  return file.status !== 'sending' && file.status !== 'receiving' && file.status !== 'zipping';
 }
 
 /**
@@ -35,8 +31,7 @@ export function useSelectAllShortcut(): void {
 
       e.preventDefault();
       const allSelected =
-        selectedIds.length === eligible.length &&
-        eligible.every((f) => selectedIds.includes(f.id));
+        selectedIds.length === eligible.length && eligible.every((f) => selectedIds.includes(f.id));
       if (allSelected) {
         clearSelection();
       } else {

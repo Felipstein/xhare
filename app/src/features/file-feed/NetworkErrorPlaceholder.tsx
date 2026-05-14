@@ -1,9 +1,9 @@
+import { RefreshCcwIcon } from 'lucide-react';
+
 import { Button } from '@/components/Button';
 import { NoWiFiLogo } from '@/components/NoWiFiLogo';
 import { reconnect } from '@/services/connection';
 import { useConnectionStore } from '@/stores/connectionStore';
-
-import { RefreshCcwIcon } from 'lucide-react';
 
 export function NetworkErrorPlaceholder() {
   const status = useConnectionStore((s) => s.status);

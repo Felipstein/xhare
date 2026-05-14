@@ -63,7 +63,9 @@ export function humanFileType(file: Pick<SharedFile, 'name' | 'kind' | 'extensio
   return 'Arquivo';
 }
 
-export function extensionBadge(file: Pick<SharedFile, 'name' | 'kind' | 'extension'>): string | null {
+export function extensionBadge(
+  file: Pick<SharedFile, 'name' | 'kind' | 'extension'>,
+): string | null {
   if (file.kind === 'folder') return null;
   const ext = file.extension ?? getExtension(file.name);
   return ext ? ext.toUpperCase() : null;

@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, it, expect } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, it, expect } from 'vitest';
 
 import { useDevicesStore } from '@/stores/devicesStore';
 

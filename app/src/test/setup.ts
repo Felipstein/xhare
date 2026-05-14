@@ -1,8 +1,9 @@
 import '@testing-library/jest-dom/vitest';
-import { afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
+import { afterEach, vi } from 'vitest';
 
 import { useDevicesStore } from '@/stores/devicesStore';
+
 import type { Device } from '@/types/Device';
 
 // ─── Mock Tauri APIs so tests can run without the real runtime ────────────

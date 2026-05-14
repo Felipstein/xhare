@@ -41,11 +41,7 @@ export type ErrorPayload = {
 
 export type Unsubscribe = () => void;
 
-export function sendFile(
-  fileId: string,
-  sourcePath: string,
-  peers: string[],
-): Promise<SentFile> {
+export function sendFile(fileId: string, sourcePath: string, peers: string[]): Promise<SentFile> {
   return invoke<SentFile>('send_file', { fileId, sourcePath, peers });
 }
 
@@ -110,9 +106,7 @@ export async function subscribeTransfer(handlers: TransferHandlers): Promise<Uns
   const offComplete = await listen<CompletePayload>('transfer-complete', (e) =>
     handlers.onComplete(e.payload),
   );
-  const offError = await listen<ErrorPayload>('transfer-error', (e) =>
-    handlers.onError(e.payload),
-  );
+  const offError = await listen<ErrorPayload>('transfer-error', (e) => handlers.onError(e.payload));
   const offZipStart = await listen<ZipStartPayload>('transfer-zip-start', (e) =>
     handlers.onZipStart(e.payload),
   );

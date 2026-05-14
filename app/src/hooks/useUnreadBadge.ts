@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { useEffect } from 'react';
 
 import { useFilesStore } from '@/stores/filesStore';
 

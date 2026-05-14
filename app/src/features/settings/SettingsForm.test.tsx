@@ -1,5 +1,5 @@
-import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 
 import { useSettingsStore } from '@/stores/settingsStore';
 
@@ -37,9 +37,7 @@ describe('SettingsForm', () => {
   it('persists the new TTL to the store after Salvar', async () => {
     render(<SettingsForm />);
     fireEvent.click(screen.getByLabelText('7 dias'));
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Salvar' })).toBeEnabled(),
-    );
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Salvar' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
     await waitFor(() => expect(useSettingsStore.getState().cacheTtl).toBe('7d'));
   });
@@ -57,9 +55,7 @@ describe('SettingsForm', () => {
     const onSaved = vi.fn();
     render(<SettingsForm onSaved={onSaved} />);
     fireEvent.click(screen.getByLabelText('1 hora'));
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Salvar' })).toBeEnabled(),
-    );
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Salvar' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
   });

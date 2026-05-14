@@ -167,8 +167,7 @@ export function ErrorActions({ file, onRetry, onRemove }: ErrorActionsProps) {
         title="Remover envio?"
         description={
           <>
-            <span className="font-medium text-zinc-200">{file.name}</span> será removido da
-            lista.
+            <span className="font-medium text-zinc-200">{file.name}</span> será removido da lista.
           </>
         }
         confirmLabel="Remover"
@@ -208,11 +207,7 @@ export function FileRowActions({
 }: RowActionsProps) {
   if (file.status === 'error') {
     return (
-      <ErrorActions
-        file={file}
-        onRetry={() => onRetry(file)}
-        onRemove={() => onRemove(file)}
-      />
+      <ErrorActions file={file} onRetry={() => onRetry(file)} onRemove={() => onRemove(file)} />
     );
   }
 
@@ -230,7 +225,9 @@ export function FileRowActions({
   }
 
   if (file.status === 'sent') {
-    return <SentActions file={file} onResend={() => onResend(file)} onRemove={() => onRemove(file)} />;
+    return (
+      <SentActions file={file} onResend={() => onResend(file)} onRemove={() => onRemove(file)} />
+    );
   }
 
   return null;

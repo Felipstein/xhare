@@ -119,10 +119,7 @@ export async function discardFile(file: SharedFile): Promise<void> {
  * Save every selected received file into `destinationDir`. Outgoing files are
  * skipped (no cache to copy from). Returns the count of files actually saved.
  */
-export async function saveManyFiles(
-  files: SharedFile[],
-  destinationDir: string,
-): Promise<number> {
+export async function saveManyFiles(files: SharedFile[], destinationDir: string): Promise<number> {
   const targets = files.filter((f) => f.cachedPath && !f.savedPath);
   if (targets.length === 0) return 0;
   let saved = 0;
@@ -176,10 +173,7 @@ export async function showInFolder(file: SharedFile): Promise<void> {
   await revealPath(path);
 }
 
-export async function saveFile(
-  file: SharedFile,
-  destinationDir: string,
-): Promise<string | null> {
+export async function saveFile(file: SharedFile, destinationDir: string): Promise<string | null> {
   if (!file.cachedPath) return null;
   try {
     const finalPath = await saveCachedRust(file.cachedPath, file.name, destinationDir);
@@ -218,9 +212,7 @@ export async function copyFile(file: SharedFile): Promise<void> {
  * Explorer drops the files; paste in chat apps attaches them where supported.
  */
 export async function copyManyFiles(files: SharedFile[]): Promise<number> {
-  const paths = files
-    .map((f) => effectivePath(f))
-    .filter((p): p is string => Boolean(p));
+  const paths = files.map((f) => effectivePath(f)).filter((p): p is string => Boolean(p));
   if (paths.length === 0) {
     notifyError('Nenhum arquivo selecionado tem caminho disponível');
     return 0;
@@ -228,8 +220,7 @@ export async function copyManyFiles(files: SharedFile[]): Promise<number> {
   try {
     await copyPathsToClipboard(paths);
     notify({
-      title:
-        paths.length === 1 ? `${files[0].name} copiado` : `${paths.length} arquivos copiados`,
+      title: paths.length === 1 ? `${files[0].name} copiado` : `${paths.length} arquivos copiados`,
     });
     return paths.length;
   } catch (err) {

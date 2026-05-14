@@ -1,7 +1,7 @@
-import { useEffect } from 'react';
-import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { FolderIcon } from 'lucide-react';
+import { useEffect } from 'react';
+import { Controller, useForm } from 'react-hook-form';
 
 import { Button } from '@/components/Button';
 import { RadioGroup } from '@/components/RadioGroup';
@@ -31,12 +31,11 @@ export function SettingsForm({ onSaved, onCancel }: Props) {
   const setDownloadFolder = useSettingsStore((s) => s.setDownloadFolder);
   const setCacheTtl = useSettingsStore((s) => s.setCacheTtl);
 
-  const { control, handleSubmit, reset, watch, setValue, formState } =
-    useForm<SettingsFormValues>({
-      resolver: zodResolver(settingsSchema),
-      defaultValues: { downloadFolder, cacheTtl },
-      mode: 'onBlur',
-    });
+  const { control, handleSubmit, reset, watch, setValue, formState } = useForm<SettingsFormValues>({
+    resolver: zodResolver(settingsSchema),
+    defaultValues: { downloadFolder, cacheTtl },
+    mode: 'onBlur',
+  });
 
   useEffect(() => {
     reset({ downloadFolder, cacheTtl });
@@ -75,14 +74,10 @@ export function SettingsForm({ onSaved, onCancel }: Props) {
           <span className="flex-1 min-w-0 truncate text-sm text-zinc-200 font-mono">
             {selectedFolder}
           </span>
-          <span className="shrink-0 text-xs text-zinc-500 group-hover:text-zinc-300">
-            Alterar…
-          </span>
+          <span className="shrink-0 text-xs text-zinc-500 group-hover:text-zinc-300">Alterar…</span>
         </button>
         {formState.errors.downloadFolder && (
-          <span className="text-xs text-red-400">
-            {formState.errors.downloadFolder.message}
-          </span>
+          <span className="text-xs text-red-400">{formState.errors.downloadFolder.message}</span>
         )}
       </fieldset>
 

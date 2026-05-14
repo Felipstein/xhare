@@ -1,5 +1,7 @@
-import { useCallback } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { useCallback } from 'react';
+
+import type { MouseEvent } from 'react';
 
 const INTERACTIVE_SELECTOR = 'button, a, input, select, textarea, label, [role="button"]';
 
@@ -17,7 +19,7 @@ const INTERACTIVE_SELECTOR = 'button, a, input, select, textarea, label, [role="
  * clickable. Double-click toggles maximize.
  */
 export function useWindowDrag() {
-  const onMouseDown = useCallback((e: React.MouseEvent<HTMLElement>) => {
+  const onMouseDown = useCallback((e: MouseEvent<HTMLElement>) => {
     if (e.button !== 0) return;
     const target = e.target as HTMLElement;
     if (target.closest(INTERACTIVE_SELECTOR)) return;

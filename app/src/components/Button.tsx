@@ -15,10 +15,8 @@ type Props = ComponentProps<'button'> & {
 };
 
 const VARIANT_CLASSES: Record<Variant, string> = {
-  primary:
-    'bg-blue-500 text-white enabled:hover:bg-blue-400 enabled:active:bg-blue-600',
-  secondary:
-    'bg-zinc-700 text-zinc-100 enabled:hover:bg-zinc-600 enabled:active:bg-zinc-800',
+  primary: 'bg-blue-500 text-white enabled:hover:bg-blue-400 enabled:active:bg-blue-600',
+  secondary: 'bg-zinc-700 text-zinc-100 enabled:hover:bg-zinc-600 enabled:active:bg-zinc-800',
   text: 'text-zinc-300 enabled:hover:text-white enabled:hover:bg-zinc-700/60',
   danger: 'text-red-400 enabled:hover:text-red-300 enabled:hover:bg-red-500/10',
 };

@@ -34,9 +34,7 @@ describe('devicesStore', () => {
     useDevicesStore.getState().setDevices(sampleDevices);
     const existing = sampleDevices[0];
     useDevicesStore.getState().addDevice({ ...existing, name: 'duplicate' });
-    expect(useDevicesStore.getState().devices.filter((d) => d.id === existing.id)).toHaveLength(
-      1,
-    );
+    expect(useDevicesStore.getState().devices.filter((d) => d.id === existing.id)).toHaveLength(1);
   });
 
   it('removeDevice drops by id', () => {
@@ -50,8 +48,8 @@ describe('devicesStore', () => {
     useDevicesStore.getState().setDevices(sampleDevices);
     const target = sampleDevices[0];
     useDevicesStore.getState().setStatus(target.id, 'OFFLINE');
-    expect(
-      useDevicesStore.getState().devices.find((d) => d.id === target.id)?.status,
-    ).toBe('OFFLINE');
+    expect(useDevicesStore.getState().devices.find((d) => d.id === target.id)?.status).toBe(
+      'OFFLINE',
+    );
   });
 });

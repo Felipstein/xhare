@@ -1,8 +1,8 @@
-import { useState } from 'react';
 import { CheckIcon, CopyIcon } from 'lucide-react';
+import { useState } from 'react';
 
-import { cn } from '@/utils/cn';
 import { useLocalIp } from '@/hooks/useLocalIp';
+import { cn } from '@/utils/cn';
 
 export function LocalIpChip({ className }: { className?: string }) {
   const ip = useLocalIp();

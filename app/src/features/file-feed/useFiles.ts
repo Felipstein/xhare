@@ -1,5 +1,3 @@
-import { useFilesStore } from '@/stores/filesStore';
-import { useSettingsStore } from '@/stores/settingsStore';
 import {
   copyFile,
   discardFile,
@@ -8,6 +6,8 @@ import {
   saveFile,
   showInFolder,
 } from '@/services/files';
+import { useFilesStore } from '@/stores/filesStore';
+import { useSettingsStore } from '@/stores/settingsStore';
 
 import type { SharedFile } from '@/types/SharedFile';
 

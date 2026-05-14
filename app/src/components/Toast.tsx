@@ -52,12 +52,7 @@ function ToastBody({ title, actions, variant = 'default', toastId }: ToastBodyPr
 export function notify(opts: NotifyOptions): string | number {
   return toast.custom(
     (id) => (
-      <ToastBody
-        toastId={id}
-        title={opts.title}
-        actions={opts.actions}
-        variant={opts.variant}
-      />
+      <ToastBody toastId={id} title={opts.title} actions={opts.actions} variant={opts.variant} />
     ),
     { duration: opts.duration },
   );

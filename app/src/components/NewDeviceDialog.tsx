@@ -96,9 +96,7 @@ export function NewDeviceDialog({ children }: PropsWithChildren) {
           <div className="flex flex-col gap-1">
             <label htmlFor="device-name" className="font-medium text-xs text-zinc-400">
               Nome (opcional)
-              {isProbing && (
-                <span className="ml-2 text-zinc-500 font-normal">buscando…</span>
-              )}
+              {isProbing && <span className="ml-2 text-zinc-500 font-normal">buscando…</span>}
             </label>
             <Input
               id="device-name"

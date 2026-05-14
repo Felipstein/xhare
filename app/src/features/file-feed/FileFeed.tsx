@@ -1,5 +1,5 @@
-import { useDevicesStore } from '@/stores/devicesStore';
 import { useConnectionStore } from '@/stores/connectionStore';
+import { useDevicesStore } from '@/stores/devicesStore';
 
 import { BulkActionBar } from './BulkActionBar';
 import { DragOverlay } from './DragOverlay';

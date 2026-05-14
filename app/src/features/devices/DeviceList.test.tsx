@@ -1,10 +1,10 @@
-import { beforeEach, describe, it, expect } from 'vitest';
 import { screen } from '@testing-library/react';
+import { beforeEach, describe, it, expect } from 'vitest';
 
 import { useConnectionStore } from '@/stores/connectionStore';
 import { useDevicesStore } from '@/stores/devicesStore';
-import { renderWithTooltip } from '@/test/renderWithTooltip';
 import { sampleDevices } from '@/test/fixtures';
+import { renderWithTooltip } from '@/test/renderWithTooltip';
 
 import { DeviceList } from './DeviceList';
 

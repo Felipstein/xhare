@@ -41,10 +41,9 @@ describe('filesStore', () => {
   });
 
   it('markAllRead flips every file', () => {
-    useFilesStore.getState().setFiles([
-      sampleFile({ id: 'a', isRead: false }),
-      sampleFile({ id: 'b', isRead: false }),
-    ]);
+    useFilesStore
+      .getState()
+      .setFiles([sampleFile({ id: 'a', isRead: false }), sampleFile({ id: 'b', isRead: false })]);
     useFilesStore.getState().markAllRead();
     expect(useFilesStore.getState().files.every((f) => f.isRead)).toBe(true);
   });

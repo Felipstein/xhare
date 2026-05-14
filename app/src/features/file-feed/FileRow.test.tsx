@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
 import { screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
 
 import { renderWithTooltip } from '@/test/renderWithTooltip';
 
@@ -71,10 +71,7 @@ describe('FileRow', () => {
 
   it('shows progress bar when status is receiving (without speed)', () => {
     renderWithTooltip(
-      <FileRow
-        file={{ ...baseFile, status: 'receiving', progress: 50 }}
-        {...noopHandlers}
-      />,
+      <FileRow file={{ ...baseFile, status: 'receiving', progress: 50 }} {...noopHandlers} />,
     );
     expect(screen.getByRole('progressbar')).toBeInTheDocument();
     expect(screen.getByText('50%')).toBeInTheDocument();

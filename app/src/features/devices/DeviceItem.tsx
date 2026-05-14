@@ -18,11 +18,7 @@ export function DeviceItem({ device }: Props) {
       <span
         aria-hidden
         title={
-          device.isSelf
-            ? 'Você'
-            : isOnline
-              ? 'Online — Xhare aberto'
-              : 'Offline — sem Xhare aberto'
+          device.isSelf ? 'Você' : isOnline ? 'Online — Xhare aberto' : 'Offline — sem Xhare aberto'
         }
         className={cn(
           'size-2 rounded-full shrink-0',

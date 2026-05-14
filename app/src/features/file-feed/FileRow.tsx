@@ -1,12 +1,12 @@
 import { ArrowUpIcon, CheckIcon, Loader2Icon } from 'lucide-react';
 
 import { Tooltip } from '@/components/Tooltip';
-import { cn } from '@/utils/cn';
-import { formatSize, formatSpeed } from '@/utils/formatSize';
-import { humanFileType } from '@/utils/fileType';
-import { timeAgo } from '@/utils/timeAgo';
 import { useDevicesStore } from '@/stores/devicesStore';
 import { useFilesStore } from '@/stores/filesStore';
+import { cn } from '@/utils/cn';
+import { humanFileType } from '@/utils/fileType';
+import { formatSize, formatSpeed } from '@/utils/formatSize';
+import { timeAgo } from '@/utils/timeAgo';
 
 import { FileIcon } from './FileIcon';
 import { FileRowActions } from './FileRowActions';
@@ -14,6 +14,7 @@ import { ProgressBar } from './ProgressBar';
 import { ROW_GRID } from './rowGrid';
 
 import type { SharedFile } from '@/types/SharedFile';
+import type { MouseEvent } from 'react';
 
 type Handlers = {
   onSave: (file: SharedFile) => void;
@@ -116,9 +117,7 @@ function FileSubtitle({ file }: { file: SharedFile }) {
       </span>
     );
   }
-  return (
-    <span className="text-[11px] text-zinc-500 truncate">{humanFileType(file)}</span>
-  );
+  return <span className="text-[11px] text-zinc-500 truncate">{humanFileType(file)}</span>;
 }
 
 export function FileRow(props: Props) {
@@ -143,7 +142,7 @@ export function FileRow(props: Props) {
   // they are real <button> elements — we let them handle their own click.
   // We also bail when the user is double-clicking (second click of a
   // double-click would otherwise toggle right back to the original state).
-  const onRowClick = (e: React.MouseEvent<HTMLDivElement>): void => {
+  const onRowClick = (e: MouseEvent<HTMLDivElement>): void => {
     if (!canSelect) return;
     if (e.detail > 1) return;
     const target = e.target as HTMLElement;
@@ -174,16 +173,10 @@ export function FileRow(props: Props) {
       )}
     >
       {isUnread && !isSelected && (
-        <span
-          aria-hidden
-          className="absolute left-0 top-0 bottom-0 w-[2px] bg-blue-500"
-        />
+        <span aria-hidden className="absolute left-0 top-0 bottom-0 w-[2px] bg-blue-500" />
       )}
       {isSelected && (
-        <span
-          aria-hidden
-          className="absolute left-0 top-0 bottom-0 w-[2px] bg-blue-400"
-        />
+        <span aria-hidden className="absolute left-0 top-0 bottom-0 w-[2px] bg-blue-400" />
       )}
 
       <div className={cn('grid items-center gap-4 px-4 py-3', ROW_GRID)}>
@@ -212,9 +205,7 @@ export function FileRow(props: Props) {
                     <CheckIcon className="size-2.5 text-green-400" />
                   </span>
                 </Tooltip.Trigger>
-                <Tooltip.Content side="top">
-                  Já salvo em {file.savedPath}
-                </Tooltip.Content>
+                <Tooltip.Content side="top">Já salvo em {file.savedPath}</Tooltip.Content>
               </Tooltip.Root>
             )}
           </div>

@@ -10,8 +10,8 @@ import {
 
 import { cn } from '@/utils/cn';
 
-import type { LucideIcon } from 'lucide-react';
 import type { SharedFile } from '@/types/SharedFile';
+import type { LucideIcon } from 'lucide-react';
 
 type Props = {
   file: SharedFile;
@@ -134,18 +134,8 @@ export function FileIcon({ file, className }: Props) {
 
   if ((file.kind === 'image' || file.kind === 'video') && file.thumbnailUrl) {
     return (
-      <div
-        className={cn(
-          'shrink-0 size-10 rounded-md overflow-hidden bg-zinc-800',
-          className,
-        )}
-      >
-        <img
-          src={file.thumbnailUrl}
-          alt=""
-          className="size-full object-cover"
-          draggable={false}
-        />
+      <div className={cn('shrink-0 size-10 rounded-md overflow-hidden bg-zinc-800', className)}>
+        <img src={file.thumbnailUrl} alt="" className="size-full object-cover" draggable={false} />
       </div>
     );
   }

@@ -1,10 +1,10 @@
 import { MinusIcon, ScrollTextIcon, SettingsIcon, SquareIcon, XIcon } from 'lucide-react';
 
-import { cn } from '@/utils/cn';
+import { LogViewer } from '@/features/logs/LogViewer';
 import { usePlatform } from '@/hooks/usePlatform';
 import { useWindowControls } from '@/hooks/useWindowControls';
 import { useWindowDrag } from '@/hooks/useWindowDrag';
-import { LogViewer } from '@/features/logs/LogViewer';
+import { cn } from '@/utils/cn';
 
 import { LocalIpChip } from './LocalIpChip';
 import { SettingsDialog } from './SettingsDialog';
