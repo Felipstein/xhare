@@ -285,9 +285,20 @@ fn handle_incoming<R: Runtime>(
         CompletePayload {
             id: header.file_id,
             direction: "receive",
-            peer: Some(header.from),
+            peer: Some(header.from.clone()),
         },
     );
+
+    // OS-level notification — surfaces in Notification Center / Action Center
+    // even when the window is hidden or another app is focused.
+    use tauri_plugin_notification::NotificationExt;
+    let _ = app
+        .notification()
+        .builder()
+        .title(format!("{} enviou um arquivo", header.from))
+        .body(&header.name)
+        .show();
+
     Ok(Some(()))
 }
 

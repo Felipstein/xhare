@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/Button';
 import { Dialog } from '@/components/Dialog';
 import { getLogsDir, readLogLines, type LogLine } from '@/services/logs';
-import { revealPath } from '@/services/transfer';
+import { openPath } from '@/services/transfer';
 import { cn } from '@/utils/cn';
 
 import type { PropsWithChildren } from 'react';
@@ -65,7 +65,7 @@ export function LogViewer({ children }: PropsWithChildren) {
   const openLogsFolder = async (): Promise<void> => {
     try {
       const dir = await getLogsDir();
-      if (dir) await revealPath(dir);
+      if (dir) await openPath(dir);
     } catch (err) {
       console.error('open logs dir:', err);
     }

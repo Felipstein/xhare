@@ -73,6 +73,9 @@ struct State {
     /// Cached reverse-DNS results keyed by IP. `None` means we tried and
     /// failed (don't retry forever).
     hostname_cache: Mutex<HashMap<String, Option<String>>>,
+    /// Last name we displayed for each IP, so peers that drop out of mDNS
+    /// (going offline) don't suddenly show as their raw IP in the feed.
+    name_memory: Mutex<HashMap<String, String>>,
 }
 
 static STATE: OnceCell<Arc<State>> = OnceCell::new();
@@ -91,6 +94,7 @@ pub fn init<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
         lan: Mutex::new(Vec::new()),
         manual: Mutex::new(HashMap::new()),
         hostname_cache: Mutex::new(HashMap::new()),
+        name_memory: Mutex::new(HashMap::new()),
     });
     STATE
         .set(state.clone())
@@ -253,7 +257,12 @@ fn is_private_v4(ip: &Ipv4Addr) -> bool {
 
 fn register_self(state: &Arc<State>) -> Result<(), String> {
     let instance = sanitize_hostname(&local_hostname());
-    let mdns_host = format!("{instance}.local.");
+    // Prefix the mDNS host claim so we don't collide with the system's own
+    // LocalHostName. On macOS, mDNSResponder already advertises `<host>.local.`
+    // for the user — claiming the same name from our daemon causes Bonjour to
+    // bump LocalHostName by appending `-2`, `-3`, …, every single time the app
+    // restarts. Using `xhare-<host>.local.` sidesteps that fight entirely.
+    let mdns_host = format!("xhare-{instance}.local.");
 
     let info = ServiceInfo::new(
         SERVICE_TYPE,
@@ -331,6 +340,13 @@ fn handle_service_event<R: Runtime>(app: &AppHandle<R>, state: &Arc<State>, even
             let Some(peer) = peer_from_info(&info) else {
                 return;
             };
+            // Remember this IP → name mapping so we still show the friendly
+            // name after the peer goes offline (LAN scan often lacks hostname).
+            state
+                .name_memory
+                .lock()
+                .unwrap()
+                .insert(peer.address.clone(), peer.name.clone());
             state.mdns.lock().unwrap().insert(peer.fullname.clone(), peer);
             emit_devices(app);
         }
@@ -470,16 +486,20 @@ fn build_devices() -> Vec<Device> {
         seen_ips.push(dev.address.clone());
     }
 
-    // ARP entries that aren't already accounted for → offline.
+    // ARP entries that aren't already accounted for → offline. We prefer the
+    // memorised mDNS name (real Xhare peer that went offline) over the ARP
+    // hostname (which is often empty), falling back to the IP only as a last
+    // resort.
+    let name_memory = state().name_memory.lock().unwrap().clone();
     for entry in lan.iter() {
         let ip_str = entry.ip.to_string();
         if seen_ips.contains(&ip_str) {
             continue;
         }
-        let name = entry
-            .hostname
-            .clone()
-            .map(|h| sanitize_hostname(&h))
+        let name = name_memory
+            .get(&ip_str)
+            .cloned()
+            .or_else(|| entry.hostname.clone().map(|h| sanitize_hostname(&h)))
             .unwrap_or_else(|| ip_str.clone());
         list.push(Device {
             id: format!("lan:{ip_str}"),

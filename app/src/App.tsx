@@ -12,6 +12,7 @@ import { useCopySelectedShortcut } from '@/hooks/useCopySelectedShortcut';
 import { useDragDrop } from '@/hooks/useDragDrop';
 import { useNativeDragDrop } from '@/hooks/useNativeDragDrop';
 import { useSelectAllShortcut } from '@/hooks/useSelectAllShortcut';
+import { useUnreadBadge } from '@/hooks/useUnreadBadge';
 import { bootstrapSettings } from '@/stores/settingsStore';
 
 export function App() {
@@ -23,6 +24,7 @@ export function App() {
   useClipboardPaste();
   useSelectAllShortcut();
   useCopySelectedShortcut();
+  useUnreadBadge();
 
   useEffect(() => {
     void bootstrapSettings();
