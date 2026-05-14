@@ -67,6 +67,9 @@ struct State {
     lan: Mutex<Vec<lan_scan::LanEntry>>,
     /// Manually-added peers, keyed by IP.
     manual: Mutex<HashMap<String, Device>>,
+    /// Cached reverse-DNS results keyed by IP. `None` means we tried and
+    /// failed (don't retry forever).
+    hostname_cache: Mutex<HashMap<String, Option<String>>>,
 }
 
 static STATE: OnceCell<Arc<State>> = OnceCell::new();
@@ -84,6 +87,7 @@ pub fn init<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
         mdns: Mutex::new(HashMap::new()),
         lan: Mutex::new(Vec::new()),
         manual: Mutex::new(HashMap::new()),
+        hostname_cache: Mutex::new(HashMap::new()),
     });
     STATE
         .set(state.clone())
@@ -281,11 +285,72 @@ fn peer_from_info(info: &ServiceInfo) -> Option<MdnsPeer> {
 
 fn spawn_lan_refresher<R: Runtime>(app: AppHandle<R>, state: Arc<State>) {
     thread::spawn(move || loop {
-        let entries = lan_scan::scan();
+        let mut entries = lan_scan::scan();
+        enrich_with_hostnames(&state, &mut entries);
         *state.lan.lock().unwrap() = entries;
         emit_devices(&app);
         thread::sleep(LAN_SCAN_INTERVAL);
     });
+}
+
+/// Fill in missing hostnames via reverse DNS, using an in-memory cache so we
+/// only ever pay the lookup cost once per IP per app session. Lookups run in
+/// parallel with a short per-IP timeout — total wall time stays under ~2s
+/// even for a fully unknown /24.
+fn enrich_with_hostnames(state: &Arc<State>, entries: &mut Vec<lan_scan::LanEntry>) {
+    let to_resolve: Vec<std::net::Ipv4Addr> = {
+        let cache = state.hostname_cache.lock().unwrap();
+        entries
+            .iter()
+            .filter(|e| e.hostname.is_none() && !cache.contains_key(&e.ip.to_string()))
+            .map(|e| e.ip)
+            .collect()
+    };
+
+    if !to_resolve.is_empty() {
+        let mut handles = Vec::with_capacity(to_resolve.len());
+        for ip in to_resolve {
+            handles.push((
+                ip,
+                thread::spawn(move || {
+                    let parsed: IpAddr = IpAddr::V4(ip);
+                    dns_lookup::lookup_addr(&parsed).ok()
+                }),
+            ));
+        }
+        let deadline = std::time::Instant::now() + Duration::from_secs(2);
+        let mut cache = state.hostname_cache.lock().unwrap();
+        for (ip, handle) in handles {
+            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+            let result = if remaining.is_zero() {
+                None
+            } else {
+                // join() blocks; we approximate timeout by checking is_finished
+                let start = std::time::Instant::now();
+                while !handle.is_finished() && start.elapsed() < remaining {
+                    thread::sleep(Duration::from_millis(20));
+                }
+                if handle.is_finished() {
+                    handle.join().ok().flatten()
+                } else {
+                    None
+                }
+            };
+            let cleaned = result
+                .map(|h| sanitize_hostname(&h))
+                .filter(|h| !h.is_empty() && h != "xhare-device");
+            cache.insert(ip.to_string(), cleaned);
+        }
+    }
+
+    let cache = state.hostname_cache.lock().unwrap();
+    for entry in entries.iter_mut() {
+        if entry.hostname.is_none() {
+            if let Some(Some(name)) = cache.get(&entry.ip.to_string()) {
+                entry.hostname = Some(name.clone());
+            }
+        }
+    }
 }
 
 // ─── Reconciliation: build the canonical device list ──────────────────────
@@ -313,12 +378,20 @@ fn build_devices() -> Vec<Device> {
         seen_ips.push(peer.address.clone());
     }
 
-    // Manually-added peers (we trust the user → mark online).
+    // Manually-added peers. Status is NOT trusted: a manual entry is only
+    // ONLINE if its IP also shows up in mDNS — otherwise it's OFFLINE.
+    // (mDNS-matched manuals are already covered by the loop above.)
     for dev in manual.values() {
         if seen_ips.contains(&dev.address) {
             continue;
         }
-        list.push(dev.clone());
+        list.push(Device {
+            id: dev.id.clone(),
+            name: dev.name.clone(),
+            address: dev.address.clone(),
+            status: DeviceStatus::Offline,
+            is_self: false,
+        });
         seen_ips.push(dev.address.clone());
     }
 
@@ -398,6 +471,17 @@ pub fn remove_device<R: Runtime>(app: AppHandle<R>, id: String) -> Result<(), St
 #[tauri::command]
 pub fn get_local_ip() -> String {
     local_ip_string()
+}
+
+#[tauri::command]
+pub fn get_default_download_folder() -> String {
+    dirs::download_dir()
+        .map(|p| p.join("Xhare").to_string_lossy().to_string())
+        .unwrap_or_else(|| {
+            dirs::home_dir()
+                .map(|p| p.join("Downloads").join("Xhare").to_string_lossy().to_string())
+                .unwrap_or_default()
+        })
 }
 
 #[tauri::command]

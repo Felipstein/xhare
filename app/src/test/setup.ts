@@ -36,6 +36,15 @@ vi.mock('@tauri-apps/api/core', () => ({
     if (cmd === 'get_local_ip') {
       return '192.168.1.42';
     }
+    if (cmd === 'get_default_download_folder') {
+      return '/tmp/Xhare';
+    }
+    if (cmd === 'load_settings') {
+      return { downloadFolder: '/tmp/Xhare', cacheTtl: '24h' };
+    }
+    if (cmd === 'save_settings') {
+      return null;
+    }
     return null;
   }),
 }));

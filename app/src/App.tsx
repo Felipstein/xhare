@@ -6,11 +6,16 @@ import { DeviceList } from '@/features/devices/DeviceList';
 import { useDeviceSubscription } from '@/features/devices/useDeviceSubscription';
 import { FileFeed } from '@/features/file-feed/FileFeed';
 import { useDragDrop } from '@/hooks/useDragDrop';
+import { bootstrapSettings } from '@/stores/settingsStore';
 
 export function App() {
   const { isDragging, begin, end } = useDragDrop();
 
   useDeviceSubscription();
+
+  useEffect(() => {
+    void bootstrapSettings();
+  }, []);
 
   // V1 only: simulate Tauri's native onDragDropEvent using DOM events on the root
   // so designers can preview the drag-over state in `pnpm dev`. In V3 this useEffect

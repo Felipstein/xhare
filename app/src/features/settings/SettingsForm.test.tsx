@@ -8,11 +8,12 @@ import { SettingsForm } from './SettingsForm';
 describe('SettingsForm', () => {
   beforeEach(() => {
     useSettingsStore.getState().reset();
+    useSettingsStore.getState().setDownloadFolder('/tmp/Xhare');
   });
 
   it('shows the current download folder path', () => {
     render(<SettingsForm />);
-    expect(screen.getByText('~/Downloads/Xhare')).toBeInTheDocument();
+    expect(screen.getByText('/tmp/Xhare')).toBeInTheDocument();
   });
 
   it('renders all four TTL options', () => {

@@ -1,7 +1,8 @@
-import { SettingsIcon } from 'lucide-react';
+import { MinusIcon, SettingsIcon, SquareIcon, XIcon } from 'lucide-react';
 
 import { cn } from '@/utils/cn';
 import { usePlatform } from '@/hooks/usePlatform';
+import { useWindowControls } from '@/hooks/useWindowControls';
 import { useWindowDrag } from '@/hooks/useWindowDrag';
 
 import { LocalIpChip } from './LocalIpChip';
@@ -11,6 +12,38 @@ type Props = {
   hint?: string;
 };
 
+function WindowsControls() {
+  const { minimize, toggleMaximize, close } = useWindowControls();
+  return (
+    <div className="flex items-stretch h-full -mr-3 shrink-0">
+      <button
+        type="button"
+        aria-label="Minimizar"
+        onClick={minimize}
+        className="inline-flex items-center justify-center w-11 h-full text-zinc-400 hover:bg-zinc-800 hover:text-white transition-colors"
+      >
+        <MinusIcon className="size-4" />
+      </button>
+      <button
+        type="button"
+        aria-label="Maximizar"
+        onClick={toggleMaximize}
+        className="inline-flex items-center justify-center w-11 h-full text-zinc-400 hover:bg-zinc-800 hover:text-white transition-colors"
+      >
+        <SquareIcon className="size-3.5" />
+      </button>
+      <button
+        type="button"
+        aria-label="Fechar"
+        onClick={close}
+        className="inline-flex items-center justify-center w-11 h-full text-zinc-400 hover:bg-red-500 hover:text-white transition-colors"
+      >
+        <XIcon className="size-4" />
+      </button>
+    </div>
+  );
+}
+
 /**
  * Title bar.
  *
@@ -18,15 +51,13 @@ type Props = {
  * renders rounded corners and the native, functional traffic lights at the
  * standard macOS coordinates. We leave `pl-20` of clearance for them.
  *
- * Windows: native chrome (decorations: true) draws min/max/close above us.
- *
- * Drag: handled manually by `useWindowDrag()` via mousedown — calling
- * `startDragging()` on the Tauri window. Tauri 2's built-in handler doesn't
- * reliably fire when the window is already focused, so we own this.
+ * Windows: at runtime we call `set_decorations(false)` so the OS draws no
+ * chrome — we render min/max/close ourselves here.
  */
 export function TitleBar({ hint }: Props) {
   const platform = usePlatform();
   const isMac = platform === 'macos';
+  const isWindows = platform === 'windows';
   const drag = useWindowDrag();
 
   return (
@@ -57,6 +88,8 @@ export function TitleBar({ hint }: Props) {
           <SettingsIcon className="size-4" />
         </button>
       </SettingsDialog>
+
+      {isWindows && <WindowsControls />}
     </header>
   );
 }

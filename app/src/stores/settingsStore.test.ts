@@ -7,9 +7,9 @@ describe('settingsStore', () => {
     useSettingsStore.getState().reset();
   });
 
-  it('has sane defaults', () => {
+  it('starts with empty folder (filled by bootstrapSettings at boot)', () => {
     const s = useSettingsStore.getState();
-    expect(s.downloadFolder).toBe('~/Downloads/Xhare');
+    expect(s.downloadFolder).toBe('');
     expect(s.cacheTtl).toBe('24h');
   });
 

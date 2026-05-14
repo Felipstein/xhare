@@ -1,13 +1,18 @@
-import { PlusIcon, RefreshCcwIcon, WifiIcon } from 'lucide-react';
+import { useState } from 'react';
+import { ChevronDownIcon, PlusIcon, RefreshCcwIcon, WifiIcon } from 'lucide-react';
 
+import { Collapsible } from '@/components/Collapsible';
 import { Loader } from '@/components/Loader';
 import { NoWiFiLogo } from '@/components/NoWiFiLogo';
 import { NewDeviceDialog } from '@/components/NewDeviceDialog';
 import { reconnect } from '@/services/connection';
 import { useConnectionStore } from '@/stores/connectionStore';
 import { useDevicesStore } from '@/stores/devicesStore';
+import { cn } from '@/utils/cn';
 
 import { DeviceItem } from './DeviceItem';
+
+import type { Device } from '@/types/Device';
 
 function SidebarHeader({ children }: { children: React.ReactNode }) {
   return (
@@ -50,21 +55,62 @@ function EmptyDevicesState() {
   );
 }
 
+function partition(devices: Device[]): { online: Device[]; offline: Device[] } {
+  const online: Device[] = [];
+  const offline: Device[] = [];
+  for (const d of devices) {
+    if (d.status === 'ONLINE') online.push(d);
+    else offline.push(d);
+  }
+  return { online, offline };
+}
+
 export function DeviceList() {
   const devices = useDevicesStore((s) => s.devices);
   const connection = useConnectionStore((s) => s.status);
   const isRetrying = connection === 'CONNECTING';
+  const [offlinesOpen, setOfflinesOpen] = useState(true);
 
   const showList = connection === 'CONNECTED' && devices.length > 0;
   const showEmptyState = connection === 'CONNECTED' && devices.length === 0;
+  const { online, offline } = partition(devices);
 
   return (
-    <aside className="w-40 shrink-0 flex flex-col border-r border-zinc-800 bg-zinc-900/40">
+    <aside className="w-44 shrink-0 flex flex-col border-r border-zinc-800 bg-zinc-900/40">
       {showList ? (
         <ul className="flex-1 flex flex-col overflow-y-auto pt-1">
-          {devices.map((device) => (
-            <DeviceItem key={device.address} device={device} />
+          {online.map((device) => (
+            <DeviceItem key={device.id} device={device} />
           ))}
+
+          {offline.length > 0 && (
+            <li className="mt-1">
+              <Collapsible.Root open={offlinesOpen} onOpenChange={setOfflinesOpen}>
+                <Collapsible.Trigger asChild>
+                  <button
+                    type="button"
+                    className="group w-full flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-semibold tracking-wider text-zinc-500 uppercase hover:text-zinc-300 transition-colors"
+                  >
+                    <ChevronDownIcon
+                      className={cn(
+                        'size-3 transition-transform',
+                        !offlinesOpen && '-rotate-90',
+                      )}
+                    />
+                    <span>Offlines ({offline.length})</span>
+                    <span className="flex-1 border-t border-zinc-800 ml-2" />
+                  </button>
+                </Collapsible.Trigger>
+                <Collapsible.Content className="overflow-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0">
+                  <ul>
+                    {offline.map((device) => (
+                      <DeviceItem key={device.id} device={device} />
+                    ))}
+                  </ul>
+                </Collapsible.Content>
+              </Collapsible.Root>
+            </li>
+          )}
         </ul>
       ) : (
         <div className="flex-1 flex flex-col">

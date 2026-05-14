@@ -1,5 +1,6 @@
 mod discovery;
 mod lan_scan;
+mod settings;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -12,9 +13,25 @@ pub fn run() {
             discovery::remove_device,
             discovery::probe_device,
             discovery::get_local_ip,
+            discovery::get_default_download_folder,
+            settings::load_settings,
+            settings::save_settings,
         ])
         .setup(|app| {
             discovery::setup(app);
+
+            // On Windows we render our own header (no native chrome).
+            // On macOS we keep `decorations: true` + `titleBarStyle: Overlay`
+            // (set in tauri.conf.json) so the OS draws rounded corners and
+            // functional traffic lights.
+            #[cfg(target_os = "windows")]
+            {
+                use tauri::Manager;
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.set_decorations(false);
+                }
+            }
+
             Ok(())
         })
         .build(tauri::generate_context!())
