@@ -289,15 +289,9 @@ fn handle_incoming<R: Runtime>(
         },
     );
 
-    // OS-level notification — surfaces in Notification Center / Action Center
-    // even when the window is hidden or another app is focused.
-    use tauri_plugin_notification::NotificationExt;
-    let _ = app
-        .notification()
-        .builder()
-        .title(format!("{} enviou um arquivo", header.from))
-        .body(&header.name)
-        .show();
+    // Per-file notification is intentionally absent here. The frontend buffers
+    // arrivals and emits a single batched notification (and skips it entirely
+    // when the window is focused) via the `show_notification` command below.
 
     Ok(Some(()))
 }
@@ -810,6 +804,38 @@ end try
     }
     #[allow(unreachable_code)]
     Vec::new()
+}
+
+/// Show an OS notification. When `skip_if_focused` is true (the typical
+/// case), the notification is dropped if the main window is currently visible
+/// and focused — no point pinging the user about something they're already
+/// looking at. The frontend batches receives before calling this so we get
+/// one notification per burst instead of one per file.
+#[tauri::command]
+pub fn show_notification<R: Runtime>(
+    app: AppHandle<R>,
+    title: String,
+    body: String,
+    skip_if_focused: bool,
+) -> Result<(), String> {
+    if skip_if_focused {
+        use tauri::Manager;
+        if let Some(window) = app.get_webview_window("main") {
+            let visible = window.is_visible().unwrap_or(false);
+            let focused = window.is_focused().unwrap_or(false);
+            if visible && focused {
+                return Ok(());
+            }
+        }
+    }
+    use tauri_plugin_notification::NotificationExt;
+    app.notification()
+        .builder()
+        .title(title)
+        .body(body)
+        .show()
+        .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 /// Write a list of file paths to the OS clipboard as a *file reference* (not

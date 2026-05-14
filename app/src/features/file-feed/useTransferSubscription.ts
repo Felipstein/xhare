@@ -1,3 +1,5 @@
+import { invoke } from '@tauri-apps/api/core';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useEffect } from 'react';
 
 import { notify } from '@/components/Toast';
@@ -18,6 +20,13 @@ import type {
 } from '@/services/transfer';
 import type { SharedFile } from '@/types/SharedFile';
 
+const NOTIFY_DEBOUNCE_MS = 1500;
+
+type BufferedArrival = {
+  file: SharedFile;
+  from: string;
+};
+
 function inferKind(name: string): SharedFile['kind'] {
   const ext = name.split('.').pop()?.toLowerCase() ?? '';
   if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic'].includes(ext)) return 'image';
@@ -34,6 +43,73 @@ export function useTransferSubscription(): void {
   useEffect(() => {
     let cancelled = false;
     let unsubscribe: (() => void) | null = null;
+    // Receives within a NOTIFY_DEBOUNCE_MS window are collapsed into a single
+    // notification — "Felipe enviou foo.txt" for one, "Felipe enviou 3
+    // arquivos" for several. Spamming one toast/OS-notif per file is noisy
+    // when someone sends a batch.
+    let buffer: BufferedArrival[] = [];
+    let timer: number | null = null;
+
+    const flushNotifications = async (): Promise<void> => {
+      const items = buffer;
+      buffer = [];
+      timer = null;
+      if (items.length === 0) return;
+
+      const firstFrom = items[0].from;
+      const allSameSender = items.every((i) => i.from === firstFrom);
+      const previewNames = items
+        .slice(0, 3)
+        .map((i) => i.file.name)
+        .join(', ');
+      const previewBody = items.length > 3 ? `${previewNames}…` : previewNames;
+
+      let title: string;
+      let body: string;
+      if (items.length === 1) {
+        title = `${firstFrom} enviou um arquivo`;
+        body = items[0].file.name;
+      } else if (allSameSender) {
+        title = `${firstFrom} enviou ${items.length} arquivos`;
+        body = previewBody;
+      } else {
+        title = `${items.length} arquivos recebidos`;
+        body = previewBody;
+      }
+
+      // The Rust command checks focus state and silently drops the OS
+      // notification when the main window is visible+focused.
+      void invoke('show_notification', { title, body, skipIfFocused: true }).catch((err) => {
+        console.warn('show_notification failed:', err);
+      });
+
+      // In-app toast: keep it for the unfocused case (when the user comes
+      // back to the app they have a record of the batch). Skip when focused
+      // since they can see the rows appearing in the feed.
+      const focused = await getCurrentWindow()
+        .isFocused()
+        .catch(() => false);
+      if (focused) return;
+
+      if (items.length === 1) {
+        // Single-file toast keeps the per-file action shortcuts.
+        const file = items[0].file;
+        const downloadFolder = useSettingsStore.getState().downloadFolder;
+        const actions = [
+          { label: 'Abrir', onClick: () => void openFile(file) },
+          { label: 'Mostrar', onClick: () => void showInFolder(file) },
+        ];
+        if (downloadFolder) {
+          actions.unshift({
+            label: 'Salvar',
+            onClick: () => void saveFile(file, downloadFolder),
+          });
+        }
+        notify({ title, actions });
+      } else {
+        notify({ title: `${title} · ${body}` });
+      }
+    };
 
     const onFileReceived = (received: ReceivedFile): void => {
       // Browser-style dedupe: if the feed already has a `notes.txt`, the new
@@ -58,18 +134,9 @@ export function useTransferSubscription(): void {
       };
       useFilesStore.getState().addFile(file);
 
-      const downloadFolder = useSettingsStore.getState().downloadFolder;
-      const actions = [
-        { label: 'Abrir', onClick: () => void openFile(file) },
-        { label: 'Mostrar', onClick: () => void showInFolder(file) },
-      ];
-      if (downloadFolder) {
-        actions.unshift({ label: 'Salvar', onClick: () => void saveFile(file, downloadFolder) });
-      }
-      notify({
-        title: `${received.from} enviou ${displayName}`,
-        actions,
-      });
+      buffer.push({ file, from: received.from });
+      if (timer !== null) window.clearTimeout(timer);
+      timer = window.setTimeout(() => void flushNotifications(), NOTIFY_DEBOUNCE_MS);
     };
 
     const onProgress = (p: ProgressPayload): void => {
@@ -145,6 +212,10 @@ export function useTransferSubscription(): void {
 
     return () => {
       cancelled = true;
+      if (timer !== null) {
+        window.clearTimeout(timer);
+        timer = null;
+      }
       if (unsubscribe) unsubscribe();
     };
   }, []);

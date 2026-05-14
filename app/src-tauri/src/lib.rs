@@ -28,6 +28,7 @@ pub fn run() {
             transfer::save_clipboard_blob,
             transfer::read_clipboard_paths,
             transfer::copy_paths_to_clipboard,
+            transfer::show_notification,
             transfer::open_path,
             transfer::reveal_path,
             logger::read_log_lines,
