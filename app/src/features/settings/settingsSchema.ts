@@ -1,9 +1,9 @@
-import { z } from 'zod';
+import * as z from 'zod/mini';
 
 export const cacheTtlSchema = z.enum(['1h', '24h', '7d', 'never']);
 
 export const settingsSchema = z.object({
-  downloadFolder: z.string().min(1, 'Pasta de destino obrigatória'),
+  downloadFolder: z.string().check(z.minLength(1, 'Pasta de destino obrigatória')),
   cacheTtl: cacheTtlSchema,
 });
 
