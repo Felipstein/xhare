@@ -28,7 +28,8 @@ function onlinePeerAddresses(): string[] {
 }
 
 function effectivePath(file: SharedFile): string | undefined {
-  return file.savedPath ?? file.cachedPath;
+  // Outgoing file: prefer its original source. Incoming: cache or saved copy.
+  return file.sourcePath ?? file.savedPath ?? file.cachedPath;
 }
 
 function revealLabel(): string {
@@ -58,6 +59,7 @@ export async function sendFromPath(sourcePath: string): Promise<SentFile | null>
     failedTo: [],
     isRead: true,
     isPinned: false,
+    sourcePath,
   };
   useFilesStore.getState().addFile(file);
   return sent;

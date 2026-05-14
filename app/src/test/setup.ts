@@ -61,6 +61,12 @@ vi.mock('@tauri-apps/api/core', () => ({
     ) {
       return null;
     }
+    if (cmd === 'read_log_lines') {
+      return [];
+    }
+    if (cmd === 'get_logs_dir') {
+      return '/tmp/logs';
+    }
     return null;
   }),
 }));

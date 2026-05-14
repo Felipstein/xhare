@@ -22,4 +22,6 @@ export type SharedFile = {
   cachedPath?: string;
   /** Final location after the user saved the file to disk. */
   savedPath?: string;
+  /** Original source path used to send this file (only set for outgoing). */
+  sourcePath?: string;
 };

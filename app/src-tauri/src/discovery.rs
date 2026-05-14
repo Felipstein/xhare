@@ -23,11 +23,14 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, Runtime};
 
 use crate::lan_scan;
+use crate::transfer::TRANSFER_PORT;
 
 pub const SERVICE_TYPE: &str = "_xhare._tcp.local.";
 pub const SERVICE_PORT: u16 = 9876;
 
 const LAN_SCAN_INTERVAL: Duration = Duration::from_secs(8);
+const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(6);
+const HEARTBEAT_TIMEOUT: Duration = Duration::from_millis(1200);
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -95,9 +98,51 @@ pub fn init<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
 
     register_self(&state)?;
     spawn_browse_loop(app.clone(), state.clone());
-    spawn_lan_refresher(app, state);
+    spawn_lan_refresher(app.clone(), state.clone());
+    spawn_heartbeat(app, state);
 
     Ok(())
+}
+
+/// TCP-probe each known mDNS peer on the Xhare transfer port. If the connect
+/// fails (host gone, port closed because the remote app was force-killed,
+/// firewall change, etc.) we drop the peer from the mDNS map so the next
+/// reconciliation emits them as OFFLINE.
+///
+/// We do this instead of relying on mDNS "bye" packets, which are unreliable
+/// — especially on Windows where process termination doesn't always flush
+/// outgoing UDP before the socket dies.
+fn spawn_heartbeat<R: Runtime>(app: AppHandle<R>, state: Arc<State>) {
+    use std::net::{SocketAddr, TcpStream};
+    thread::spawn(move || loop {
+        thread::sleep(HEARTBEAT_INTERVAL);
+        let peers: Vec<(String, String)> = state
+            .mdns
+            .lock()
+            .unwrap()
+            .values()
+            .map(|p| (p.fullname.clone(), p.address.clone()))
+            .collect();
+        if peers.is_empty() {
+            continue;
+        }
+        let mut dropped: Vec<String> = Vec::new();
+        for (fullname, address) in peers {
+            let socket: Option<SocketAddr> =
+                format!("{address}:{TRANSFER_PORT}").parse().ok();
+            let alive = socket
+                .map(|s| TcpStream::connect_timeout(&s, HEARTBEAT_TIMEOUT).is_ok())
+                .unwrap_or(false);
+            if !alive {
+                state.mdns.lock().unwrap().remove(&fullname);
+                dropped.push(fullname);
+            }
+        }
+        if !dropped.is_empty() {
+            log::info!("heartbeat dropped {} stale peer(s)", dropped.len());
+            emit_devices(&app);
+        }
+    });
 }
 
 pub fn shutdown() {

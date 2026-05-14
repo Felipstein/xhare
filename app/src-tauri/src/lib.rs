@@ -1,10 +1,13 @@
 mod discovery;
 mod lan_scan;
+mod logger;
 mod settings;
 mod transfer;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    logger::init();
+
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -22,6 +25,8 @@ pub fn run() {
             transfer::discard_cached_file,
             transfer::open_path,
             transfer::reveal_path,
+            logger::read_log_lines,
+            logger::get_logs_dir,
         ])
         .setup(|app| {
             discovery::setup(app);

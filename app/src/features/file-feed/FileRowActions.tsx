@@ -149,18 +149,36 @@ export function SentActions({ file, onResend, onRemove }: SentActionsProps) {
 }
 
 type ErrorActionsProps = {
+  file: SharedFile;
   onRetry: () => void;
+  onRemove: () => void;
 };
 
-export function ErrorActions({ onRetry }: ErrorActionsProps) {
+export function ErrorActions({ file, onRetry, onRemove }: ErrorActionsProps) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1">
       <span className="px-2 py-0.5 text-[10px] font-semibold rounded text-red-400 bg-red-500/10 border border-red-500/30">
         Falhou
       </span>
       <IconButton label="Tentar novamente" onClick={onRetry}>
         <RefreshCcwIcon />
       </IconButton>
+      <ConfirmDialog
+        title="Remover envio?"
+        description={
+          <>
+            <span className="font-medium text-zinc-200">{file.name}</span> será removido da
+            lista.
+          </>
+        }
+        confirmLabel="Remover"
+        destructive
+        onConfirm={onRemove}
+      >
+        <IconButton label="Remover" tone="danger">
+          <XIcon />
+        </IconButton>
+      </ConfirmDialog>
     </div>
   );
 }
@@ -189,7 +207,13 @@ export function FileRowActions({
   onRetry,
 }: RowActionsProps) {
   if (file.status === 'error') {
-    return <ErrorActions onRetry={() => onRetry(file)} />;
+    return (
+      <ErrorActions
+        file={file}
+        onRetry={() => onRetry(file)}
+        onRemove={() => onRemove(file)}
+      />
+    );
   }
 
   if (file.status === 'received') {

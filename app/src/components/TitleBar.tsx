@@ -1,9 +1,10 @@
-import { MinusIcon, SettingsIcon, SquareIcon, XIcon } from 'lucide-react';
+import { MinusIcon, ScrollTextIcon, SettingsIcon, SquareIcon, XIcon } from 'lucide-react';
 
 import { cn } from '@/utils/cn';
 import { usePlatform } from '@/hooks/usePlatform';
 import { useWindowControls } from '@/hooks/useWindowControls';
 import { useWindowDrag } from '@/hooks/useWindowDrag';
+import { LogViewer } from '@/features/logs/LogViewer';
 
 import { LocalIpChip } from './LocalIpChip';
 import { SettingsDialog } from './SettingsDialog';
@@ -78,6 +79,16 @@ export function TitleBar({ hint }: Props) {
       </div>
 
       <LocalIpChip />
+
+      <LogViewer>
+        <button
+          type="button"
+          aria-label="Logs"
+          className="inline-flex items-center justify-center size-7 rounded-md text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
+        >
+          <ScrollTextIcon className="size-4" />
+        </button>
+      </LogViewer>
 
       <SettingsDialog>
         <button
