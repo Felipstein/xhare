@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "PowerShell(pnpm config *)",
-      "PowerShell(pnpm *)"
+      "PowerShell(pnpm *)",
+      "PowerShell(& \"C:\\\\Program Files \\(x86\\)\\\\Microsoft Visual Studio\\\\Installer\\\\vswhere.exe\" -all -format json 2>$null | ConvertFrom-Json | Select-Object displayName, installationPath, installationVersion)",
+      "PowerShell(& \"C:\\\\Program Files \\(x86\\)\\\\Microsoft Visual Studio\\\\Installer\\\\vswhere.exe\" -all -legacy -format json)",
+      "PowerShell(& \"C:\\\\Program Files \\(x86\\)\\\\Microsoft Visual Studio\\\\Installer\\\\vswhere.exe\" -legacy -requires Microsoft.VisualStudio.Workload.NativeDesktop -format json | ConvertFrom-Json | Select-Object displayName)",
+      "PowerShell(& \"C:\\\\Program Files \\(x86\\)\\\\Microsoft Visual Studio\\\\Installer\\\\vswhere.exe\" -legacy -requires Microsoft.VisualStudio.Workload.NativeDesktop)"
     ]
   }
 }
