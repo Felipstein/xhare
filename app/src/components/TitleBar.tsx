@@ -1,6 +1,7 @@
 import { MinusIcon, ScrollTextIcon, SettingsIcon, SquareIcon, XIcon } from 'lucide-react';
 
 import { LogViewer } from '@/features/logs/LogViewer';
+import { useAppVersion } from '@/hooks/useAppVersion';
 import { usePlatform } from '@/hooks/usePlatform';
 import { useWindowControls } from '@/hooks/useWindowControls';
 import { useWindowDrag } from '@/hooks/useWindowDrag';
@@ -60,6 +61,7 @@ export function TitleBar({ hint }: Props) {
   const isMac = platform === 'macos';
   const isWindows = platform === 'windows';
   const drag = useWindowDrag();
+  const version = useAppVersion();
 
   return (
     <header
@@ -71,6 +73,9 @@ export function TitleBar({ hint }: Props) {
     >
       <div className="flex items-center gap-2 flex-1 min-w-0 h-full">
         <span className="text-sm font-semibold tracking-tight text-zinc-100">Xhare</span>
+        {version && (
+          <span className="text-[10px] font-medium text-zinc-500 tabular-nums">v{version}</span>
+        )}
         {hint && (
           <span className="px-2 py-0.5 text-[11px] rounded bg-zinc-800 text-zinc-400 border border-zinc-700">
             {hint}
