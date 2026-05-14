@@ -1,6 +1,12 @@
 @import "tailwindcss";
 @plugin "tailwindcss-animate";
 
+/* Tailwind v4's auto content detection respects .gitignore at startup. Since we
+ * have a directory literally named `logs` (the in-app log viewer feature), it
+ * gets caught by tooling that conflates "logs/" with the gitignore semantic
+ * even after the rule was removed. Declaring sources explicitly is bulletproof. */
+@source "./**/*.{ts,tsx,html}";
+
 @layer base {
   * {
     @apply border-zinc-700

@@ -15,6 +15,7 @@ export function _DialogContent({
       <DialogPrimitive.Content
         className={cn(
           'fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 p-5 border rounded-xl bg-zinc-800',
+          'focus:outline-none focus-visible:outline-none',
           'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
           'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95',
           className,

@@ -9,6 +9,8 @@
 use std::fs::{self, OpenOptions};
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
+use std::thread;
+use std::time::{Duration, SystemTime};
 
 use chrono::Local;
 use serde::Serialize;
@@ -19,6 +21,8 @@ use simplelog::{
 
 const APP_DIR: &str = "com.felipe.xhare";
 const LOGS_SUBDIR: &str = "logs";
+const MAX_LOG_AGE: Duration = Duration::from_secs(2 * 24 * 60 * 60); // 2 days
+const CLEANUP_INTERVAL: Duration = Duration::from_secs(6 * 60 * 60); // 6 hours
 
 fn logs_dir() -> Option<PathBuf> {
     Some(dirs::config_dir()?.join(APP_DIR).join(LOGS_SUBDIR))
@@ -73,6 +77,43 @@ pub fn init() {
     ]);
 
     log::info!("logger initialized; writing to {}", log_path.display());
+
+    cleanup_old_logs();
+    spawn_cleanup_thread();
+}
+
+/// Delete log files older than `MAX_LOG_AGE`. Quiet on errors — best effort.
+fn cleanup_old_logs() {
+    let Some(dir) = logs_dir() else { return };
+    let Ok(entries) = fs::read_dir(&dir) else { return };
+    let now = SystemTime::now();
+    let mut removed: u32 = 0;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|s| s.to_str()) != Some("log") {
+            continue;
+        }
+        let Ok(metadata) = entry.metadata() else { continue };
+        let Ok(modified) = metadata.modified() else { continue };
+        let Ok(age) = now.duration_since(modified) else { continue };
+        if age > MAX_LOG_AGE {
+            if fs::remove_file(&path).is_ok() {
+                removed += 1;
+            } else {
+                log::warn!("failed to remove old log file: {}", path.display());
+            }
+        }
+    }
+    if removed > 0 {
+        log::info!("cleaned up {removed} log file(s) older than 2 days");
+    }
+}
+
+fn spawn_cleanup_thread() {
+    thread::spawn(|| loop {
+        thread::sleep(CLEANUP_INTERVAL);
+        cleanup_old_logs();
+    });
 }
 
 #[derive(Debug, Clone, Serialize)]

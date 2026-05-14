@@ -122,13 +122,26 @@ fn run_server<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
     Ok(())
 }
 
-fn handle_incoming<R: Runtime>(app: &AppHandle<R>, stream: TcpStream) -> Result<(), String> {
+/// `Ok(None)` = connection closed before sending anything (heartbeat probe).
+/// `Ok(Some(()))` = real transfer completed.
+/// `Err(...)` = real protocol error mid-transfer.
+fn handle_incoming<R: Runtime>(
+    app: &AppHandle<R>,
+    stream: TcpStream,
+) -> Result<Option<()>, String> {
     stream
         .set_read_timeout(Some(Duration::from_secs(30)))
         .ok();
     let mut reader = BufReader::new(stream);
 
-    let header_len = reader.read_u32::<BigEndian>().map_err(|e| e.to_string())?;
+    let header_len = match reader.read_u32::<BigEndian>() {
+        Ok(v) => v,
+        Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
+            // Empty connection — heartbeat probe. Silent.
+            return Ok(None);
+        }
+        Err(e) => return Err(e.to_string()),
+    };
     if header_len == 0 || header_len > 64 * 1024 {
         return Err(format!("invalid header length {header_len}"));
     }
@@ -216,7 +229,7 @@ fn handle_incoming<R: Runtime>(app: &AppHandle<R>, stream: TcpStream) -> Result<
             peer: Some(header.from),
         },
     );
-    Ok(())
+    Ok(Some(()))
 }
 
 // ─── outgoing ─────────────────────────────────────────────────────────────
