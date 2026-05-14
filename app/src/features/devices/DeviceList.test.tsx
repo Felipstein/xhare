@@ -1,8 +1,9 @@
 import { beforeEach, describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 
 import { useConnectionStore } from '@/stores/connectionStore';
 import { useDevicesStore } from '@/stores/devicesStore';
+import { renderWithTooltip } from '@/test/renderWithTooltip';
 import { sampleDevices } from '@/test/fixtures';
 
 import { DeviceList } from './DeviceList';
@@ -15,7 +16,7 @@ describe('DeviceList', () => {
 
   it('renders all devices when connected', () => {
     useDevicesStore.getState().setDevices(sampleDevices);
-    render(<DeviceList />);
+    renderWithTooltip(<DeviceList />);
     expect(screen.getByText('macbook-pro')).toBeInTheDocument();
     expect(screen.getByText('ipad-air')).toBeInTheDocument();
     expect(screen.getByText('imac-studio')).toBeInTheDocument();
@@ -23,20 +24,20 @@ describe('DeviceList', () => {
   });
 
   it('shows empty state when no devices and connected', () => {
-    render(<DeviceList />);
+    renderWithTooltip(<DeviceList />);
     expect(screen.getByText(/Nenhum dispositivo/)).toBeInTheDocument();
   });
 
   it('shows disconnected state with retry button', () => {
     useConnectionStore.getState().setStatus('DISCONNECTED');
-    render(<DeviceList />);
+    renderWithTooltip(<DeviceList />);
     expect(screen.getByText(/Sem conexão/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Tentar novamente/ })).toBeInTheDocument();
   });
 
   it('shows connecting state', () => {
     useConnectionStore.getState().setStatus('CONNECTING');
-    render(<DeviceList />);
+    renderWithTooltip(<DeviceList />);
     expect(screen.getByText(/Conectando/)).toBeInTheDocument();
   });
 });

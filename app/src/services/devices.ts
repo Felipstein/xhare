@@ -8,15 +8,6 @@ export type AddDeviceInput = {
   name?: string;
 };
 
-type LostPayload = { address: string };
-type StatusChangedPayload = { address: string; status: Device['status'] };
-
-export type DeviceEventHandler = {
-  onDiscovered: (device: Device) => void;
-  onLost: (payload: LostPayload) => void;
-  onStatusChanged: (payload: StatusChangedPayload) => void;
-};
-
 export type Unsubscribe = () => void;
 
 export function getDevices(): Promise<Device[]> {
@@ -30,8 +21,8 @@ export function addDeviceByIp(input: AddDeviceInput): Promise<Device> {
   });
 }
 
-export function removeDevice(address: string): Promise<void> {
-  return invoke('remove_device', { address });
+export function removeDevice(id: string): Promise<void> {
+  return invoke('remove_device', { id });
 }
 
 export async function probeDevice(address: string): Promise<string | null> {
@@ -39,20 +30,13 @@ export async function probeDevice(address: string): Promise<string | null> {
   return result ?? null;
 }
 
-export async function subscribeDeviceEvents(
-  handler: DeviceEventHandler,
+/**
+ * Subscribe to the full device list. Rust emits the entire list every time
+ * something changes (mDNS resolves/removes, LAN refresher fires, manual add,
+ * etc.), so the frontend just replaces its state. Returns an unsubscribe fn.
+ */
+export async function subscribeDevices(
+  onChange: (devices: Device[]) => void,
 ): Promise<Unsubscribe> {
-  const offDiscovered = await listen<Device>('device-discovered', (e) =>
-    handler.onDiscovered(e.payload),
-  );
-  const offLost = await listen<LostPayload>('device-lost', (e) => handler.onLost(e.payload));
-  const offChanged = await listen<StatusChangedPayload>(
-    'device-status-changed',
-    (e) => handler.onStatusChanged(e.payload),
-  );
-  return () => {
-    offDiscovered();
-    offLost();
-    offChanged();
-  };
+  return listen<Device[]>('devices', (e) => onChange(e.payload));
 }

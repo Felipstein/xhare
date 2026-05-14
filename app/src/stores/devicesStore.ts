@@ -9,8 +9,8 @@ type DevicesState = {
 type DevicesActions = {
   setDevices: (devices: Device[]) => void;
   addDevice: (device: Device) => void;
-  removeDevice: (address: string) => void;
-  setStatus: (address: string, status: Device['status']) => void;
+  removeDevice: (id: string) => void;
+  setStatus: (id: string, status: Device['status']) => void;
   reset: () => void;
 };
 
@@ -25,19 +25,17 @@ export const useDevicesStore = create<DevicesState & DevicesActions>((set) => ({
 
   addDevice: (device) =>
     set((s) =>
-      s.devices.some((d) => d.address === device.address)
-        ? s
-        : { devices: [...s.devices, device] },
+      s.devices.some((d) => d.id === device.id) ? s : { devices: [...s.devices, device] },
     ),
 
-  removeDevice: (address) =>
+  removeDevice: (id) =>
     set((s) => ({
-      devices: s.devices.filter((d) => d.address !== address),
+      devices: s.devices.filter((d) => d.id !== id),
     })),
 
-  setStatus: (address, status) =>
+  setStatus: (id, status) =>
     set((s) => ({
-      devices: s.devices.map((d) => (d.address === address ? { ...d, status } : d)),
+      devices: s.devices.map((d) => (d.id === id ? { ...d, status } : d)),
     })),
 
   reset: () => set(initialState),

@@ -1,12 +1,12 @@
 import { useEffect } from 'react';
 
-import { getDevices, subscribeDeviceEvents } from '@/services/devices';
+import { getDevices, subscribeDevices } from '@/services/devices';
 import { useDevicesStore } from '@/stores/devicesStore';
 
 /**
- * On mount: fetch the current device snapshot from Rust, then subscribe to
- * live mDNS events. In browser dev mode this is a no-op (mock data already
- * lives in the store).
+ * On mount: fetch the initial device list from Rust, then subscribe to the
+ * `devices` event which fires with the full list every time the Rust side
+ * reconciles (mDNS, LAN scan, manual add/remove).
  */
 export function useDeviceSubscription(): void {
   useEffect(() => {
@@ -14,27 +14,21 @@ export function useDeviceSubscription(): void {
     let unsubscribe: (() => void) | null = null;
 
     const setDevices = useDevicesStore.getState().setDevices;
-    const addDevice = useDevicesStore.getState().addDevice;
-    const removeDevice = useDevicesStore.getState().removeDevice;
-    const setStatus = useDevicesStore.getState().setStatus;
 
     void (async () => {
       try {
         const snapshot = await getDevices();
-        if (cancelled) return;
-        setDevices(snapshot);
+        if (!cancelled) setDevices(snapshot);
       } catch (err) {
         console.error('getDevices failed:', err);
       }
 
       try {
-        unsubscribe = await subscribeDeviceEvents({
-          onDiscovered: (device) => addDevice(device),
-          onLost: ({ address }) => removeDevice(address),
-          onStatusChanged: ({ address, status }) => setStatus(address, status),
+        unsubscribe = await subscribeDevices((devices) => {
+          if (!cancelled) setDevices(devices);
         });
       } catch (err) {
-        console.error('subscribeDeviceEvents failed:', err);
+        console.error('subscribeDevices failed:', err);
       }
 
       if (cancelled && unsubscribe) {

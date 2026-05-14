@@ -1,5 +1,9 @@
+export type DeviceStatus = 'ONLINE' | 'OFFLINE';
+
 export type Device = {
+  id: string;
   name: string;
   address: string;
-  status: 'ONLINE' | 'OFFLINE';
+  status: DeviceStatus;
+  isSelf: boolean;
 };

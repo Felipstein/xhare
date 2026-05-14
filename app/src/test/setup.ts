@@ -16,16 +16,18 @@ vi.mock('@tauri-apps/api/core', () => ({
       const address = String(args?.address ?? '');
       const explicit = (args?.name as string | null | undefined) ?? null;
       const device: Device = {
+        id: `manual:${address}`,
         address,
         name: explicit && explicit.trim().length > 0 ? explicit : address,
         status: 'ONLINE',
+        isSelf: false,
       };
       useDevicesStore.getState().addDevice(device);
       return device;
     }
     if (cmd === 'remove_device') {
-      const address = String(args?.address ?? '');
-      useDevicesStore.getState().removeDevice(address);
+      const id = String(args?.id ?? '');
+      useDevicesStore.getState().removeDevice(id);
       return null;
     }
     if (cmd === 'probe_device') {

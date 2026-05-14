@@ -1,14 +1,18 @@
-// mDNS-SD based local-network device discovery.
+// mDNS + LAN discovery.
 //
-// Advertises this machine as `_xhare._tcp.local.` and browses for other peers
-// of the same service type. Maintains an in-memory map of currently-known
-// devices and emits Tauri events as that map changes.
+// Sources of truth:
+//   - mDNS browse for `_xhare._tcp.local.` → which peers are running Xhare
+//     (these will be ONLINE)
+//   - System ARP table (`arp -a`) → all IPs currently visible on the LAN
+//     (peers not in mDNS show as OFFLINE)
 //
-// Cross-platform: macOS / Windows / Linux all use the same code path. The
-// mdns-sd crate handles platform multicast quirks internally.
+// We do NOT persist anything in memory across reconciliations. Each scan
+// rebuilds the device list from the current state of both sources. A device
+// that leaves the LAN disappears from the list entirely. A device that's on
+// the LAN but stops advertising mDNS goes OFFLINE.
 
 use std::collections::HashMap;
-use std::net::IpAddr;
+use std::net::{IpAddr, Ipv4Addr};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
@@ -18,15 +22,26 @@ use once_cell::sync::OnceCell;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Runtime};
 
+use crate::lan_scan;
+
 pub const SERVICE_TYPE: &str = "_xhare._tcp.local.";
 pub const SERVICE_PORT: u16 = 9876;
+
+const LAN_SCAN_INTERVAL: Duration = Duration::from_secs(8);
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Device {
+    /// Stable id.
+    ///   - `self:<fullname>`   — this machine
+    ///   - `mdns:<fullname>`   — peer running Xhare
+    ///   - `lan:<ip>`          — peer on the LAN but NOT running Xhare
+    ///   - `manual:<ip>`       — manually-added peer
+    pub id: String,
     pub name: String,
     pub address: String,
     pub status: DeviceStatus,
+    pub is_self: bool,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
@@ -36,10 +51,22 @@ pub enum DeviceStatus {
     Offline,
 }
 
+#[derive(Debug, Clone)]
+struct MdnsPeer {
+    fullname: String,
+    name: String,
+    address: String,
+}
+
 struct State {
-    devices: Mutex<HashMap<String, Device>>, // keyed by address
     daemon: ServiceDaemon,
     own_fullname: Mutex<Option<String>>,
+    /// Xhare peers discovered via mDNS (excluding self).
+    mdns: Mutex<HashMap<String, MdnsPeer>>,
+    /// IPs currently visible in the OS ARP table.
+    lan: Mutex<Vec<lan_scan::LanEntry>>,
+    /// Manually-added peers, keyed by IP.
+    manual: Mutex<HashMap<String, Device>>,
 }
 
 static STATE: OnceCell<Arc<State>> = OnceCell::new();
@@ -48,35 +75,48 @@ fn state() -> &'static Arc<State> {
     STATE.get().expect("discovery not initialized")
 }
 
-/// Bootstrap mDNS discovery. Called once on app startup.
-/// Spawns a background thread that owns the browse loop.
 pub fn init<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
     let daemon = ServiceDaemon::new().map_err(|e| format!("ServiceDaemon::new: {e}"))?;
 
     let state = Arc::new(State {
-        devices: Mutex::new(HashMap::new()),
         daemon,
         own_fullname: Mutex::new(None),
+        mdns: Mutex::new(HashMap::new()),
+        lan: Mutex::new(Vec::new()),
+        manual: Mutex::new(HashMap::new()),
     });
     STATE
         .set(state.clone())
         .map_err(|_| "discovery already initialized")?;
 
     register_self(&state)?;
-    spawn_browse_loop(app, state);
+    spawn_browse_loop(app.clone(), state.clone());
+    spawn_lan_refresher(app, state);
 
     Ok(())
 }
 
-/// Sanitize a hostname into a stable, mDNS-friendly device name.
+pub fn shutdown() {
+    if let Some(state) = STATE.get() {
+        let _ = state.daemon.shutdown();
+    }
+}
+
+// ─── helpers ──────────────────────────────────────────────────────────────
+
 fn sanitize_hostname(raw: &str) -> String {
     let trimmed = raw.trim_end_matches(".local").trim();
     let lower = trimmed.to_lowercase();
     let cleaned: String = lower
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '-' { c } else { '-' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' {
+                c
+            } else {
+                '-'
+            }
+        })
         .collect();
-    // collapse consecutive dashes
     let mut out = String::with_capacity(cleaned.len());
     let mut prev_dash = false;
     for c in cleaned.chars() {
@@ -102,21 +142,54 @@ fn local_hostname() -> String {
         .unwrap_or_else(|| "xhare-device".to_string())
 }
 
-/// Register this machine as a service.
+fn local_ip_string() -> String {
+    local_ip_address::local_ip()
+        .map(|ip| ip.to_string())
+        .unwrap_or_default()
+}
+
+fn sanitize_instance(fullname: &str) -> String {
+    fullname.split('.').next().unwrap_or("").to_string()
+}
+
+fn pick_best_address(info: &ServiceInfo) -> Option<IpAddr> {
+    let addrs: Vec<IpAddr> = info.get_addresses().iter().copied().collect();
+    if let Some(ip) = addrs
+        .iter()
+        .find(|ip| matches!(ip, IpAddr::V4(v4) if is_private_v4(v4)))
+        .copied()
+    {
+        return Some(ip);
+    }
+    if let Some(ip) = addrs.iter().find(|ip| matches!(ip, IpAddr::V4(_))).copied() {
+        return Some(ip);
+    }
+    addrs.into_iter().next()
+}
+
+fn is_private_v4(ip: &Ipv4Addr) -> bool {
+    let o = ip.octets();
+    o[0] == 10
+        || (o[0] == 172 && (16..=31).contains(&o[1]))
+        || (o[0] == 192 && o[1] == 168)
+}
+
+// ─── self registration ────────────────────────────────────────────────────
+
 fn register_self(state: &Arc<State>) -> Result<(), String> {
-    let raw = local_hostname();
-    let instance = sanitize_hostname(&raw);
-    // mdns-sd requires a hostname that ends with `.local.`
+    let instance = sanitize_hostname(&local_hostname());
     let mdns_host = format!("{instance}.local.");
 
-    // We don't bind to any IP explicitly — mdns-sd picks usable local interfaces.
     let info = ServiceInfo::new(
         SERVICE_TYPE,
         &instance,
         &mdns_host,
         "",
         SERVICE_PORT,
-        &[("name", instance.as_str()), ("version", env!("CARGO_PKG_VERSION"))][..],
+        &[
+            ("name", instance.as_str()),
+            ("version", env!("CARGO_PKG_VERSION")),
+        ][..],
     )
     .map_err(|e| format!("ServiceInfo::new: {e}"))?
     .enable_addr_auto();
@@ -131,7 +204,26 @@ fn register_self(state: &Arc<State>) -> Result<(), String> {
     Ok(())
 }
 
-/// Background thread that owns the browse loop and emits events to the front.
+fn own_device() -> Device {
+    let name = sanitize_hostname(&local_hostname());
+    let address = local_ip_string();
+    let fullname = state()
+        .own_fullname
+        .lock()
+        .unwrap()
+        .clone()
+        .unwrap_or_default();
+    Device {
+        id: format!("self:{fullname}"),
+        name,
+        address,
+        status: DeviceStatus::Online,
+        is_self: true,
+    }
+}
+
+// ─── mDNS browse loop ─────────────────────────────────────────────────────
+
 fn spawn_browse_loop<R: Runtime>(app: AppHandle<R>, state: Arc<State>) {
     let receiver: Receiver<ServiceEvent> = match state.daemon.browse(SERVICE_TYPE) {
         Ok(r) => r,
@@ -152,98 +244,116 @@ fn spawn_browse_loop<R: Runtime>(app: AppHandle<R>, state: Arc<State>) {
 fn handle_service_event<R: Runtime>(app: &AppHandle<R>, state: &Arc<State>, event: ServiceEvent) {
     match event {
         ServiceEvent::ServiceResolved(info) => {
-            // Ignore ourselves
             if let Some(own) = state.own_fullname.lock().unwrap().as_ref() {
                 if info.get_fullname() == own {
                     return;
                 }
             }
-            let Some(device) = device_from_info(&info) else {
+            let Some(peer) = peer_from_info(&info) else {
                 return;
             };
-            let is_new = {
-                let mut devs = state.devices.lock().unwrap();
-                let prev = devs.insert(device.address.clone(), device.clone());
-                prev.is_none() || prev.map(|p| p.status) != Some(DeviceStatus::Online)
-            };
-            if is_new {
-                let _ = app.emit("device-discovered", device.clone());
-            } else {
-                let _ = app.emit(
-                    "device-status-changed",
-                    StatusChangedPayload {
-                        address: device.address.clone(),
-                        status: DeviceStatus::Online,
-                    },
-                );
-            }
+            state.mdns.lock().unwrap().insert(peer.fullname.clone(), peer);
+            emit_devices(app);
         }
-        ServiceEvent::ServiceRemoved(_service_type, fullname) => {
-            // Match by fullname → mark all matching devices offline.
-            let mut devs = state.devices.lock().unwrap();
-            let mut offline_addresses: Vec<String> = Vec::new();
-            for (addr, dev) in devs.iter_mut() {
-                if dev.name == sanitize_fullname(&fullname) && dev.status == DeviceStatus::Online {
-                    dev.status = DeviceStatus::Offline;
-                    offline_addresses.push(addr.clone());
-                }
-            }
-            drop(devs);
-            for addr in offline_addresses {
-                let _ = app.emit(
-                    "device-status-changed",
-                    StatusChangedPayload {
-                        address: addr,
-                        status: DeviceStatus::Offline,
-                    },
-                );
-            }
+        ServiceEvent::ServiceRemoved(_, fullname) => {
+            state.mdns.lock().unwrap().remove(&fullname);
+            emit_devices(app);
         }
         _ => {}
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct StatusChangedPayload {
-    address: String,
-    status: DeviceStatus,
-}
-
-fn sanitize_fullname(fullname: &str) -> String {
-    // Fullname looks like "name._xhare._tcp.local." — extract the instance.
-    fullname
-        .split('.')
-        .next()
-        .unwrap_or("")
-        .to_string()
-}
-
-fn device_from_info(info: &ServiceInfo) -> Option<Device> {
-    let addr = info.get_addresses().iter().next().copied()?;
-    let address = ip_to_string(addr);
+fn peer_from_info(info: &ServiceInfo) -> Option<MdnsPeer> {
+    let addr = pick_best_address(info)?;
+    let address = addr.to_string();
     let name = info
         .get_property_val_str("name")
         .map(|s| s.to_string())
-        .unwrap_or_else(|| sanitize_fullname(info.get_fullname()));
-    Some(Device {
+        .unwrap_or_else(|| sanitize_instance(info.get_fullname()));
+    Some(MdnsPeer {
+        fullname: info.get_fullname().to_string(),
         name,
         address,
-        status: DeviceStatus::Online,
     })
 }
 
-fn ip_to_string(ip: IpAddr) -> String {
-    ip.to_string()
+// ─── LAN refresher ────────────────────────────────────────────────────────
+
+fn spawn_lan_refresher<R: Runtime>(app: AppHandle<R>, state: Arc<State>) {
+    thread::spawn(move || loop {
+        let entries = lan_scan::scan();
+        *state.lan.lock().unwrap() = entries;
+        emit_devices(&app);
+        thread::sleep(LAN_SCAN_INTERVAL);
+    });
+}
+
+// ─── Reconciliation: build the canonical device list ──────────────────────
+
+fn build_devices() -> Vec<Device> {
+    let mut list: Vec<Device> = Vec::new();
+    list.push(own_device());
+
+    let own_ip = local_ip_string();
+    let mdns = state().mdns.lock().unwrap().clone();
+    let lan = state().lan.lock().unwrap().clone();
+    let manual = state().manual.lock().unwrap().clone();
+
+    let mut seen_ips: Vec<String> = vec![own_ip];
+
+    // mDNS peers (online via Xhare).
+    for peer in mdns.values() {
+        list.push(Device {
+            id: format!("mdns:{}", peer.fullname),
+            name: peer.name.clone(),
+            address: peer.address.clone(),
+            status: DeviceStatus::Online,
+            is_self: false,
+        });
+        seen_ips.push(peer.address.clone());
+    }
+
+    // Manually-added peers (we trust the user → mark online).
+    for dev in manual.values() {
+        if seen_ips.contains(&dev.address) {
+            continue;
+        }
+        list.push(dev.clone());
+        seen_ips.push(dev.address.clone());
+    }
+
+    // ARP entries that aren't already accounted for → offline.
+    for entry in lan.iter() {
+        let ip_str = entry.ip.to_string();
+        if seen_ips.contains(&ip_str) {
+            continue;
+        }
+        let name = entry
+            .hostname
+            .clone()
+            .map(|h| sanitize_hostname(&h))
+            .unwrap_or_else(|| ip_str.clone());
+        list.push(Device {
+            id: format!("lan:{ip_str}"),
+            name,
+            address: ip_str,
+            status: DeviceStatus::Offline,
+            is_self: false,
+        });
+    }
+
+    list
+}
+
+fn emit_devices<R: Runtime>(app: &AppHandle<R>) {
+    let _ = app.emit("devices", build_devices());
 }
 
 // ─── Public commands ──────────────────────────────────────────────────────
 
 #[tauri::command]
 pub fn get_devices() -> Vec<Device> {
-    let state = state();
-    let devs = state.devices.lock().unwrap();
-    devs.values().cloned().collect()
+    build_devices()
 }
 
 #[tauri::command]
@@ -261,47 +371,35 @@ pub fn add_device_by_ip<R: Runtime>(
         _ => probe_hostname_sync(&address).unwrap_or_else(|| address.clone()),
     };
     let device = Device {
+        id: format!("manual:{address}"),
         name: final_name,
         address: address.clone(),
         status: DeviceStatus::Online,
+        is_self: false,
     };
-    let state = state();
-    state
-        .devices
+    state()
+        .manual
         .lock()
         .unwrap()
         .insert(address, device.clone());
-    let _ = app.emit("device-discovered", device.clone());
+    emit_devices(&app);
     Ok(device)
 }
 
 #[tauri::command]
-pub fn remove_device<R: Runtime>(app: AppHandle<R>, address: String) -> Result<(), String> {
-    let state = state();
-    let removed = state.devices.lock().unwrap().remove(&address).is_some();
-    if removed {
-        let _ = app.emit("device-lost", LostPayload { address });
+pub fn remove_device<R: Runtime>(app: AppHandle<R>, id: String) -> Result<(), String> {
+    if let Some(stripped) = id.strip_prefix("manual:") {
+        state().manual.lock().unwrap().remove(stripped);
+        emit_devices(&app);
     }
     Ok(())
 }
 
-#[derive(Debug, Clone, Serialize)]
-struct LostPayload {
-    address: String,
-}
-
-/// Returns this machine's primary local-network IP (the one routed to the
-/// default gateway). Empty string on failure.
 #[tauri::command]
 pub fn get_local_ip() -> String {
-    local_ip_address::local_ip()
-        .map(|ip| ip.to_string())
-        .unwrap_or_default()
+    local_ip_string()
 }
 
-/// Best-effort reverse DNS / hostname probe for `add by IP` UX:
-/// when the user enters an IP and blurs the field, we try to find a name to
-/// pre-fill. Times out fast; failures return None.
 #[tauri::command]
 pub fn probe_device(address: String) -> Option<String> {
     probe_hostname_sync(&address)
@@ -309,7 +407,6 @@ pub fn probe_device(address: String) -> Option<String> {
 
 fn probe_hostname_sync(address: &str) -> Option<String> {
     let parsed: IpAddr = address.parse().ok()?;
-    // Run lookup in a thread with a timeout. dns_lookup is blocking.
     let (tx, rx) = std::sync::mpsc::channel();
     thread::spawn(move || {
         let result = dns_lookup::lookup_addr(&parsed).ok();
@@ -324,7 +421,6 @@ fn probe_hostname_sync(address: &str) -> Option<String> {
     }
 }
 
-/// Tauri app setup entry — wire discovery into the running app.
 pub fn setup<R: Runtime>(app: &tauri::App<R>) {
     let handle = app.handle().clone();
     if let Err(e) = init(handle) {
